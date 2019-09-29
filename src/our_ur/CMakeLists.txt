@@ -12,7 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   sensor_msgs
-  # sensor_msgs
+
   moveit_core 
   moveit_ros_planning 
   moveit_ros_planning_interface 

@@ -16,17 +16,20 @@ int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "move_service_node_i_guess");
     ros::NodeHandle n;
-    // ros::AsyncSpinner()
+    ros::AsyncSpinner spinner(1);
+    spinner.start();
 
     static const std::string PLANNING_GROUP = "manipulator";
 
     moveit::planning_interface::MoveGroupInterface move_group(PLANNING_GROUP);
 
     moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-
+    ROS_DEBUG("We're here! Before robot state fetch");
     // move_group.getCurrentState() returns a pointer to RobotState
     const robot_state::JointModelGroup* joint_model_group = \
                 move_group.getCurrentState()->getJointModelGroup(PLANNING_GROUP);
+
+    ROS_DEBUG("We're here!");
 
     
     namespace rvt = rviz_visual_tools;
@@ -44,7 +47,7 @@ int main(int argc, char *argv[])
     ROS_INFO_NAMED("tutorial", "Reference frame: %s", move_group.getPlanningFrame().c_str());
     ROS_INFO_NAMED("tutorial", "End effector link: %s", move_group.getEndEffectorLink().c_str());
 
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start the demo");
+    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start the demo");
 
 
 
@@ -61,23 +64,21 @@ int main(int argc, char *argv[])
     ROS_INFO_NAMED("tutorial", "Visualizing plan 1 (pose goal) %s", success ? "" : "FAILED");
 
 
-    // VISUALIZING PLANS
-    ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
-    visual_tools.publishAxisLabeled(target_pose1, "pose1");
-    visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
-    visual_tools.publishTrajectoryLine(my_plan.trajectory_, joint_model_group);
-    visual_tools.trigger();
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+    // // VISUALIZING PLANS
+    // ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
+    // visual_tools.publishAxisLabeled(target_pose1, "pose1");
+    // visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
+    // visual_tools.publishTrajectoryLine(my_plan.trajectory_, joint_model_group);
+    // visual_tools.trigger();
+    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
 
 
     move_group.move();
 
 
-    ros::spinOnce();
 
 
-
-
-
+    ros::shutdown();
+    
     return 0;
 }
