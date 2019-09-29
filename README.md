@@ -1,8 +1,20 @@
 ## Repo for RSD 2019 by The Ape-Team
 This repo is a ros/catkin workspace with three packages:
 
-### Dependencies
+1. **universal_robot**
 
+... Package for the UR robot. Has many models. Has the robot description files, moveit files, and many more. This is the robot itself.
+
+2. **ur_modern_driver**
+
+...The drivers for communicating with the **real** robot.
+
+3. **our_ur**
+
+...This is where we will be spending our time. This package borrows from the above packages and many others.
+
+### Dependencies
+TO-DO
 
 ### Instructions
 `
@@ -23,18 +35,6 @@ In case of desire to test on the real robot, this is the place to start first.
 Run the simulator first, turn the robot on (in simulatrion), and then run the following command `roslaunch our_ur ur_cell_real.launch`.
 Currently this launch file launches rviz with the motion planning panel so you can play around and see that what you do in rviz translates to the simulator (and consequently the robot)
 
-1. **universal_robot**
-
-... Package for the UR robot. Has many models. Has the robot description files, moveit files, and many more. This is the robot itself.
-
-2. **ur_modern_driver**
-
-...The drivers for communicating with the **real** robot.
-
-3. **our_ur**
-
-...This is where we will be spending our time. This package borrows from the above packages and many others. 
-
 
 ### So far
 - **our_ur** package has two launch files. One is for real robot mode `ur_cell_real.launch`, and the other for simulation purposes `ur_cell_simulation.launch`. We will be using the latter for now. 
@@ -44,4 +44,4 @@ Currently this launch file launches rviz with the motion planning panel so you c
 
 
 ## TO-DO
-
+TO-DO
