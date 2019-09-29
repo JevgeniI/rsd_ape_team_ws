@@ -17,7 +17,7 @@ This repo is a ros/catkin workspace with three packages:
 TO-DO
 
 ### Instructions
-`
+```
 sudo apt-get install ros-kinetic-desktop-full ros-kinetic-moveit ros-kinetic-moveit-visual-tools
 cd ~
 git clone https://github.com/mabouseif/rsd_ape_team_ws.git
@@ -26,7 +26,7 @@ rosdep install --from-paths src --ignore-src -r -y
 catkin_make
 source devel/setup.bash
 rospack profile
-`
+```
 and then download the UR robot simulator
 [Download UR Simulator](https://www.universal-robots.com/download/?option=51593#section41511)
 and follow the instructions to install it and run it.
