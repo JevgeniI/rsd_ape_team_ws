@@ -1,5 +1,28 @@
 ## Repo for RSD 2019 by The Ape-Team
 This repo is a ros/catkin workspace with three packages:
+
+### Dependencies
+
+
+### Instructions
+`
+sudo apt-get install ros-kinetic-desktop-full ros-kinetic-moveit ros-kinetic-moveit-visual-tools
+cd ~
+git clone https://github.com/mabouseif/rsd_ape_team_ws.git
+cd ~/rsd_ape_team_ws
+rosdep install --from-paths src --ignore-src -r -y
+catkin_make
+source devel/setup.bash
+rospack profile
+`
+and then download the UR robot simulator
+[Download UR Simulator](https://www.universal-robots.com/download/?option=51593#section41511)
+and follow the instructions to install it and run it.
+
+In case of desire to test on the real robot, this is the place to start first.
+Run the simulator first, turn the robot on (in simulatrion), and then run the following command `roslaunch our_ur ur_cell_real.launch`.
+Currently this launch file launches rviz with the motion planning panel so you can play around and see that what you do in rviz translates to the simulator (and consequently the robot)
+
 1. **universal_robot**
 
 ... Package for the UR robot. Has many models. Has the robot description files, moveit files, and many more. This is the robot itself.
