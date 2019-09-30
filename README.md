@@ -16,7 +16,7 @@ This repo is a ros/catkin workspace with three packages:
 ### Dependencies
 TO-DO
 
-### Instructions
+### Install and Build Instructions
 ```
 sudo apt-get install ros-kinetic-desktop-full ros-kinetic-moveit ros-kinetic-moveit-visual-tools
 cd ~
@@ -45,3 +45,13 @@ Currently this launch file launches rviz with the motion planning panel so you c
 
 ## TO-DO
 TO-DO
+
+
+
+## Run Instructions
+- To run the robot in Gazebo simulation:
+`roslaunch our_ur ur_cell_simulation.launch`
+You can then use the motion planning panel in rviz to set goal poses and plan and execute trajectories.
+- To run with the real/robot or URsim:
+Start either one, and then run `roslaunch our_ur ur_cell_real.launch` and do the same as above.
+You can also run `rosrun our_ur move_stuff_node` and the robot will go to a hardcoded predetermined pose.

@@ -19,6 +19,9 @@ int main(int argc, char *argv[])
     ros::AsyncSpinner spinner(1);
     spinner.start();
 
+
+    
+
     static const std::string PLANNING_GROUP = "manipulator";
 
     moveit::planning_interface::MoveGroupInterface move_group(PLANNING_GROUP);
