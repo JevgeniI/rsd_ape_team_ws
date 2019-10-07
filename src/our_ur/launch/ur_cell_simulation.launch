@@ -1,18 +1,18 @@
 <launch>
 
-	<include file="$(find ur_gazebo)/launch/ur5_joint_limited.launch">
+	<include file="$(find ur_e_gazebo)/launch/ur5e_joint_limited.launch">
 	</include>
 
 
 
-	<include file="$(find ur5_moveit_config)/launch/ur5_moveit_planning_execution.launch">
+	<include file="$(find ur5_e_moveit_config)/launch/ur5_e_moveit_planning_execution.launch">
 		<arg name="sim" default="true"/>
 		<arg name="limited" default="true"/>
 	</include>
 
 
 
-	<include file="$(find ur5_moveit_config)/launch/moveit_rviz.launch">
+	<include file="$(find ur5_e_moveit_config)/launch/moveit_rviz.launch">
 		<arg name="config" default="true"/>
 	</include>
 
