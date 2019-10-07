@@ -11,7 +11,6 @@
 
 #include <moveit_visual_tools/moveit_visual_tools.h>
 
-
 int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "move_service_node_i_guess");
@@ -20,7 +19,7 @@ int main(int argc, char *argv[])
     spinner.start();
 
 
-    
+
 
     static const std::string PLANNING_GROUP = "manipulator";
 
@@ -34,13 +33,13 @@ int main(int argc, char *argv[])
 
     ROS_DEBUG("We're here!");
 
-    
+
     namespace rvt = rviz_visual_tools;
     moveit_visual_tools::MoveItVisualTools visual_tools("base_link");
     visual_tools.deleteAllMarkers();
     visual_tools.loadRemoteControl();
 
-    Eigen::Affine3d text_pose = Eigen::Affine3d::Identity();
+    Eigen::Isometry3d text_pose = Eigen::Isometry3d::Identity();
     text_pose.translation().z() = 1.75;
     visual_tools.publishText(text_pose, "MoveGroupInterface Demo", rvt::WHITE, rvt::XLARGE);
 
@@ -50,7 +49,7 @@ int main(int argc, char *argv[])
     ROS_INFO_NAMED("tutorial", "Reference frame: %s", move_group.getPlanningFrame().c_str());
     ROS_INFO_NAMED("tutorial", "End effector link: %s", move_group.getEndEffectorLink().c_str());
 
-    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start the demo");
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start the demo");
 
 
 
@@ -68,12 +67,12 @@ int main(int argc, char *argv[])
 
 
     // // VISUALIZING PLANS
-    // ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
-    // visual_tools.publishAxisLabeled(target_pose1, "pose1");
-    // visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
-    // visual_tools.publishTrajectoryLine(my_plan.trajectory_, joint_model_group);
-    // visual_tools.trigger();
-    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+    ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
+    visual_tools.publishAxisLabeled(target_pose1, "pose1");
+    visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
+    visual_tools.publishTrajectoryLine(my_plan.trajectory_, joint_model_group);
+    visual_tools.trigger();
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
 
 
     move_group.move();
@@ -82,6 +81,6 @@ int main(int argc, char *argv[])
 
 
     ros::shutdown();
-    
+
     return 0;
 }

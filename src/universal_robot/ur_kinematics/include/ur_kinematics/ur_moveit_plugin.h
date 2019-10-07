@@ -94,8 +94,11 @@
 #include <kdl/chainiksolvervel_pinv.hpp>
 #include <kdl/chainiksolverpos_nr_jl.hpp>
 #include <kdl/chainfksolverpos_recursive.hpp>
-#include <moveit/kdl_kinematics_plugin/chainiksolver_pos_nr_jl_mimic.hpp>
-#include <moveit/kdl_kinematics_plugin/chainiksolver_vel_pinv_mimic.hpp>
+#if !ROS_VERSION_MINIMUM(1, 14, 1) // if current ros version is not >= 1.14.1 --> Melodic
+  #include <moveit/kdl_kinematics_plugin/chainiksolver_pos_nr_jl_mimic.hpp>
+  #include <moveit/kdl_kinematics_plugin/chainiksolver_vel_pinv_mimic.hpp>
+#endif
+
 #include <moveit/kdl_kinematics_plugin/joint_mimic.hpp>
 
 // MoveIt!
