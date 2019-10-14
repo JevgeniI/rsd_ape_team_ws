@@ -46,6 +46,7 @@ class CustomModbusResponse(ModbusResponse):
 
     def __init__(self, values=None, **kwargs):
         ModbusResponse.__init__(self, **kwargs)
+        print "init custom modbus response"
         self.values = values or []
 
     def encode(self):
@@ -53,6 +54,7 @@ class CustomModbusResponse(ModbusResponse):
 
         :returns: The encoded packet message
         """
+        print "encoding!"
         result = int2byte(len(self.values) * 2)
         for register in self.values:
             result += struct.pack('>H', register)
@@ -63,6 +65,7 @@ class CustomModbusResponse(ModbusResponse):
 
         :param data: The packet data to decode
         """
+        print "decoding!"
         byte_count = byte2int(data[0])
         self.values = []
         for i in range(1, byte_count + 1, 2):
@@ -77,6 +80,7 @@ class CustomModbusRequest(ModbusRequest):
     def __init__(self, address=None, **kwargs):
         ModbusRequest.__init__(self, **kwargs)
         self.address = address
+        print "init custom modbus request"
         self.count = 16
 
     def encode(self):
@@ -86,12 +90,15 @@ class CustomModbusRequest(ModbusRequest):
         self.address, self.count = struct.unpack('>HH', data)
 
     def execute(self, context):
+        print "executing!"
+        #context.setValues(55, 0, 16)
         if not (1 <= self.count <= 0x7d0):
             return self.doException(ModbusExceptions.IllegalValue)
         if not context.validate(self.function_code, self.address, self.count):
             return self.doException(ModbusExceptions.IllegalAddress)
         values = context.getValues(self.function_code, self.address,
                                    self.count)
+        print "Values = ", context.getValues(55, 0, 16)[0]
         return CustomModbusResponse(values)
 
 # --------------------------------------------------------------------------- #
