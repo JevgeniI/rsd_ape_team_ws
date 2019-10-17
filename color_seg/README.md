@@ -2,7 +2,8 @@
 opencv
 
 ### To Run:
-```mkdir build && cd build
+```
+mkdir build && cd build
 cmake ..
 make
 ./color_seg
