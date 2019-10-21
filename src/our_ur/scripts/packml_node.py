@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import time
+import threading
 from std_msgs.msg import String
 
 #------------------------------------------------------------------#
@@ -28,14 +29,12 @@ class Stopped(State):
         super(Stopped, self).__init__(FSM)
 
     def Enter(self):
-        print "Stopping"
+        #print "Stopping"
         super(Stopped, self).Enter()
 
     def Execute(self):
-        time.sleep(1)
-        print "Stopped - Time elapsed: ", (int(time.time()) - self.startTime)
-
         if(self.startTime + self.timer <= time.time()):
+            print "Stopped - Time elapsed: ", (int(time.time()) - self.startTime)
             self.FSM.ToTransition("toIdle")
 
 # --------- IDLE -------- #
@@ -44,18 +43,16 @@ class Idle(State):
         super(Idle, self).__init__(FSM)
 
     def Enter(self):
-        print "Entering Idle state"
+        #print "Entering Idle state"
         super(Idle, self).Enter()
 
     def Execute(self):
         if(self.startTime == 0):
             self.Enter()
 
-        time.sleep(1)
-        print "Idle - Time elapsed: ", (int(time.time()) - self.startTime)
-
         if(self.startTime + self.timer <= time.time()):
             self.FSM.ToTransition("toExecute")
+            print "Idle - Time elapsed: ", (int(time.time()) - self.startTime)
 
 
 
@@ -65,15 +62,14 @@ class Execute(State):
         super(Execute, self).__init__(FSM)
 
     def Enter(self):
-        print "Starting ..."
+        #print "Starting ..."
         super(Execute, self).Enter()
 
     def Execute(self):
-        time.sleep(1)
-        print "Execute - Time elapsed: ", (int(time.time()) - self.startTime)
-
         if(self.startTime + self.timer <= time.time()):
             self.FSM.ToTransition("toComplete")
+            print "Execute - Time elapsed: ", (int(time.time()) - self.startTime)
+
 
 
 
@@ -83,19 +79,27 @@ class Complete(State):
         super(Complete, self).__init__(FSM)
 
     def Enter(self):
-        print "Entering Complete state"
+        #print "Entering Complete state"
         super(Complete, self).Enter()
 
     def Execute(self):
-        time.sleep(1)
-        print "Complete - Time elapsed: ", (int(time.time()) - self.startTime)
-
-
-
         if(self.startTime + self.timer <= time.time()):
             self.FSM.ToTransition("toIdle")
+            print "Complete - Time elapsed: ", (int(time.time()) - self.startTime)
 
+# --------- Aborted -------- #
+class Aborted(State):
+    def __init__(self, FSM):
+        super(Aborted, self).__init__(FSM)
 
+    def Enter(self):
+        print "Aborting!"
+        super(Aborted, self).Enter()
+
+    def Execute(self):
+        if(self.startTime + self.timer <= time.time()):
+            self.FSM.ToTransition("toStopped")
+            print "Aborted - Time elapsed: ", (int(time.time()) - self.startTime)
 
 
 #------------------------------------------------------------------#
@@ -106,7 +110,8 @@ class Transition(object):
         self.toState = toState
 
     def Execute(self):
-        print "Transitioning..."
+        pass
+        #print "Transitioning..."
 
 
 #------------------------------------------------------------------#
@@ -134,7 +139,9 @@ class FSM(object):
     def ToTransition(self, toTrans):
         self.trans = self.transitions[toTrans]
 
-    def Execute(self):
+    def Execute(self, cmd):
+        if(cmd == "a"):
+            self.ToTransition("toAborted")
         if(self.trans):
             self.curState.Exit()
             self.trans.Execute()
@@ -157,22 +164,25 @@ class PACKML(object):
         self.FSM.AddState("IDLE", Idle(self.FSM))
         self.FSM.AddState("COMPLETE", Complete(self.FSM))
         self.FSM.AddState("EXECUTE", Execute(self.FSM))
+        self.FSM.AddState("ABORTED", Aborted(self.FSM))
 
         #TRANSITIONS
         self.FSM.AddTransition("toStopped", Transition("STOPPED"))
         self.FSM.AddTransition("toIdle", Transition("IDLE"))
         self.FSM.AddTransition("toComplete", Transition("COMPLETE"))
         self.FSM.AddTransition("toExecute", Transition("EXECUTE"))
+        self.FSM.AddTransition ("toAborted", Transition("ABORTED"))
 
         self.FSM.SetState("IDLE")
 
-    def Execute(self):
-        self.FSM.Execute()
+    def Execute(self, cmd):
+        self.FSM.Execute(cmd)
 
 #------------------------------------------------------------------#
 # LISENTER CALLBACK FUNCTION
 def callback(data):
     rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
+
 
 if __name__ == '__main__':
 
@@ -184,5 +194,15 @@ if __name__ == '__main__':
 
     pml = PACKML()
 
+    startT = int(time.time())
+    cmd = ''
+
     while not rospy.is_shutdown():
-        pml.Execute()
+
+        if(startT + 7 < time.time()):
+            cmd = "a"
+            startT = time.time()
+
+
+        pml.Execute(cmd)
+        cmd = ''
