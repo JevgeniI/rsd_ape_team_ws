@@ -1,28 +1,35 @@
 #!/usr/bin/env python
 """
-Pymodbus Asynchronous Server Example
+Pymodbus Server With Callbacks
 --------------------------------------------------------------------------
 
-The asynchronous server is a high performance implementation using the
-twisted library as its backend.  This allows it to scale to many thousands
-of nodes which can be helpful for testing monitoring software.
+This is an example of adding callbacks to a running modbus server
+when a value is written to it. In order for this to work, it needs
+a device-mapping file.
 """
 # --------------------------------------------------------------------------- #
-# import the various server implementations
+# import the modbus libraries we need
 # --------------------------------------------------------------------------- #
+<<<<<<< Updated upstream
 #from pymodbus.server.asynchronous import StartTcpServer
 from pymodbus.server.sync import StartTcpServer
 
 #from pymodbus.server.asynchronous import StartUdpServer
 #from pymodbus.server.asynchronous import StartSerialServer
 
+=======
+from pymodbus.server.sync import StartTcpServer
+>>>>>>> Stashed changes
 from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.datastore import ModbusSequentialDataBlock
+from pymodbus.datastore import ModbusSparseDataBlock
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
-from pymodbus.transaction import (ModbusRtuFramer,
-                                  ModbusAsciiFramer,
-                                  ModbusBinaryFramer)
-from custom_message import CustomModbusRequest
+from pymodbus.transaction import ModbusRtuFramer, ModbusAsciiFramer
+
+
+# --------------------------------------------------------------------------- #
+# import the python libraries we need
+# --------------------------------------------------------------------------- #
+from multiprocessing import Queue, Process
 
 import threading
 import time
@@ -31,12 +38,13 @@ import time
 # configure the service logging
 # --------------------------------------------------------------------------- #
 import logging
-FORMAT = ('%(asctime)-15s %(threadName)-15s'
-          ' %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s')
-logging.basicConfig(format=FORMAT)
+logging.basicConfig()
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+# --------------------------------------------------------------------------- #
+# create your custom data block with callbacks
+# --------------------------------------------------------------------------- #
 
 block = ModbusSequentialDataBlock(0, [0]*100)
 store = ModbusSlaveContext(di=block,co=block,hr=block,ir=block)
@@ -49,22 +57,23 @@ context = ModbusServerContext(slaves=store, single=True)
 
 def run_sync_server():
 
-    # ----------------------------------------------------------------------- #
-    # initialize the server information
-    # ----------------------------------------------------------------------- #
-    # If you don't set this or any fields, they are defaulted to empty strings.
-    # ----------------------------------------------------------------------- #
-    identity = ModbusDeviceIdentification()
-    identity.VendorName = 'Pymodbus'
-    identity.ProductCode = 'PM'
-    identity.VendorUrl = 'http://github.com/bashwork/pymodbus/'
-    identity.ProductName = 'Pymodbus Server'
-    identity.ModelName = 'Pymodbus Server'
-    identity.MajorMinorRevision = '2.2.0'
+class CallbackDataBlock(ModbusSparseDataBlock):
+    """ A datablock that stores the new value in memory
+    and passes the operation to a message queue for further
+    processing.
+    """
 
-    # ----------------------------------------------------------------------- #
-    # run the server you want
-    # ----------------------------------------------------------------------- #
+    def __init__(self, address):
+
+
+    def setValues(self, address, value):
+        """ Sets the requested values of the datastore
+
+        :param address: The starting address
+        :param values: The new values to be set
+        """
+        super(CallbackDataBlock, self).setValues(address, value)
+        self.queue.put((self.devices.get(address, None), value))
 
     # TCP Server
     StartTcpServer(context, identity=identity, address=("localhost", 5020))#,custom_functions=[CustomModbusRequest])
