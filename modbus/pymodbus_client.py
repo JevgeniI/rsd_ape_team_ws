@@ -1,8 +1,8 @@
-#from pymodbus.client.sync import ModbusTcpClient
-from pymodbus.client.sync import ModbusTcpClient
-from custom_message import CustomModbusRequest
-from custom_message import CustomModbusResponse
+#!/usr/bin/env python
 
+
+The following is an example of how to use the synchronous modbus client
+implementation from pymodbus.
 
 if __name__ == "__main__":
     with ModbusTcpClient(host='localhost', port=5020) as client:

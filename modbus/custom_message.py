@@ -90,8 +90,13 @@ class CustomModbusRequest(ModbusRequest):
         self.address, self.count = struct.unpack('>HH', data)
 
     def execute(self, context):
+<<<<<<< Updated upstream
         print "executing!"
         #context.setValues(55, 0, 16)
+=======
+        print "Address: "
+        print self.address 
+>>>>>>> Stashed changes
         if not (1 <= self.count <= 0x7d0):
             return self.doException(ModbusExceptions.IllegalValue)
         if not context.validate(self.function_code, self.address, self.count):
