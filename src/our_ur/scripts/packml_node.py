@@ -224,11 +224,14 @@ import sys, tty, termios
 from getch import getch, pause
 
 cmd = ''
+ready = False
 
 def getch_func():
-    global cmd
+    global cmd, ready
+    ready = False
     cmd = raw_input("> ")#getch()
     print('You pressed:', cmd)
+    ready = True
 
 
 if __name__ == '__main__':
@@ -244,20 +247,25 @@ if __name__ == '__main__':
 
 
     while not rospy.is_shutdown():
-        # Starting server if not alive
-        if(not inputThread.isAlive()):
+        # saving command if it is ready
+        if(ready):
+            command = cmd
+            ready = False;
+        else:
+            command = ''
+        # Starting input thread if not alive
+        if(not inputThread.isAlive() and not ready):
             inputThread = threading.Thread(target=getch_func, args=())
             inputThread.daemon = True
             inputThread.start()
+
         # Exit program it q is pressed
-        if(cmd == 'quit'): break;
+        if(command == 'quit'): break;
 
-        currentCmd = cmd
-        pml.Execute(cmd)
+        # The main state machine is executed.
+        pml.Execute(command)
 
+        # Publish the current state every 1 secound
         if((startT + 1 <=  int(time.time())) and (pml.GetState() != None )):
             pub_state.publish(pml.GetState())
             startT =  int(time.time())
-
-        if(currentCmd == cmd):
-            cmd = ''
