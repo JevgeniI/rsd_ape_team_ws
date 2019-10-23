@@ -16,9 +16,9 @@ int low_S = 0;
 int high_S = max_S_value;
 int low_V = 0;
 int high_V = max_V_value;
-int kernel_size_erosion = 11;
+int kernel_size_erosion = 1;
 int kernel_max_erosion = 29;
-int kernel_size_dilation = 11;
+int kernel_size_dilation = 1;
 int kernel_max_dilation = 29;
 
 const char* window_original_name = "Original Image";
@@ -74,16 +74,18 @@ static void on_high_V_thresh_trackbar(int, void *)
 
 static void on_kernel_size_erosion_trackbar(int, void *)
 {
+    kernel_size_erosion = std::max(kernel_size_erosion, 1);
     cv::setTrackbarPos("Kernel Size", window_processed_name, kernel_size_erosion);
-    cv::Mat strucuting_element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_erosion, kernel_size_erosion));
-    cv::erode(dst, dst, strucuting_element);
+    // cv::Mat structuring_element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_erosion, kernel_size_erosion));
+    // cv::erode(dst, dst, structuring_element);
 }
 
 static void on_kernel_size_dilation_trackbar(int, void *)
 {
+    kernel_max_dilation = std::max(kernel_size_dilation, 1);
     cv::setTrackbarPos("Kernel Size", window_processed_name, kernel_size_dilation);
-    cv::Mat strucuting_element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_dilation, kernel_size_dilation));
-    cv::dilate(dst, dst, strucuting_element);
+    // cv::Mat structuring_element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_dilation, kernel_size_dilation));
+    // cv::dilate(dst, dst, structuring_element);
 }
 
 int main(int argc, char** argv)
@@ -146,13 +148,14 @@ int main(int argc, char** argv)
     {
 
         cv::inRange(src_hsv, cv::Scalar(low_H, low_S, low_V), cv::Scalar(high_H, high_S, high_V), dst);
-        cv::Mat strucuting_element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_erosion, kernel_size_erosion));
-        cv::erode(dst, dst, strucuting_element, cv::Point(-1, -1), 5);    
-        cv::dilate(dst, dst, strucuting_element, cv::Point(-1, -1), 2);
-        bitwise_not ( dst, dst );
+        cv::Mat structuring_element_erosion = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_erosion, kernel_size_erosion));
+        cv::Mat structuring_element_dilation = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size_dilation, kernel_size_dilation));
+        cv::erode(dst, dst, structuring_element_erosion, cv::Point(-1, -1), 5);    
+        cv::dilate(dst, dst, structuring_element_dilation, cv::Point(-1, -1), 3);
+        // bitwise_not ( dst, dst );
 
-        blob_detect->detect(dst, keypoints);
-        cv::drawKeypoints(dst, keypoints, im_w_keypoints, cv::Scalar(255,0,0), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+        // blob_detect->detect(dst, keypoints);
+        // cv::drawKeypoints(dst, keypoints, im_w_keypoints, cv::Scalar(255,0,0), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
         
         imshow(window_original_name, src);
         cv::resizeWindow (window_original_name, 600, 600);
