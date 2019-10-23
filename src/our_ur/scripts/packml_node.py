@@ -29,13 +29,19 @@ class Stopped(State):
         super(Stopped, self).__init__(FSM)
 
     def Enter(self):
-        #print "Stopping"
+        if(self.FSM.prevState == self.FSM.states["ABORTED"]):
+            print "TRANSITION - CLEARING"
+        else:
+            print "TRANSITION - STOPPING"
         super(Stopped, self).Enter()
 
     def Execute(self):
-        if(self.startTime + self.timer <= time.time()):
-            print "Stopped - Time elapsed: ", (int(time.time()) - self.startTime)
+        if(self.FSM.GetCmd() == 'reset'):
             self.FSM.ToTransition("toIdle")
+
+        if(self.startTime + 2 <=  int(time.time())):
+            #print ("STATE = STOPPED")
+            self.startTime = int(time.time())
 
 # --------- IDLE -------- #
 class Idle(State):
@@ -43,17 +49,18 @@ class Idle(State):
         super(Idle, self).__init__(FSM)
 
     def Enter(self):
-        #print "Entering Idle state"
+        print "TRANSITION - RESETTING"
         super(Idle, self).Enter()
 
     def Execute(self):
-        if(self.startTime == 0):
-            self.Enter()
-
-        if(self.startTime + self.timer <= time.time()):
+        if(self.FSM.GetCmd() == 'stop'):
+            self.FSM.ToTransition("toStopped")
+        if(self.FSM.GetCmd() == 'start'):
             self.FSM.ToTransition("toExecute")
-            print "Idle - Time elapsed: ", (int(time.time()) - self.startTime)
 
+        if(self.startTime + 2 <=  int(time.time())):
+            #print ("STATE = IDLE")
+            self.startTime = int(time.time())
 
 
 # --------- Execute -------- #
@@ -62,14 +69,18 @@ class Execute(State):
         super(Execute, self).__init__(FSM)
 
     def Enter(self):
-        #print "Starting ..."
+        print "TRANSITION - STARTING"
         super(Execute, self).Enter()
 
     def Execute(self):
-        if(self.startTime + self.timer <= time.time()):
+        if(self.FSM.GetCmd() == 'stop'):
+            self.FSM.ToTransition("toStopped")
+        if(self.FSM.GetCmd() == 'sc'):
             self.FSM.ToTransition("toComplete")
-            print "Execute - Time elapsed: ", (int(time.time()) - self.startTime)
 
+        if(self.startTime + 2 <=  int(time.time())):
+            #print ("STATE = EXECUTE")
+            self.startTime = int(time.time())
 
 
 
@@ -79,13 +90,18 @@ class Complete(State):
         super(Complete, self).__init__(FSM)
 
     def Enter(self):
-        #print "Entering Complete state"
+        print "TRANSITION - COMPLETING"
         super(Complete, self).Enter()
 
     def Execute(self):
-        if(self.startTime + self.timer <= time.time()):
+        if(self.FSM.GetCmd() == 'stop'):
+            self.FSM.ToTransition("toStopped")
+        if(self.FSM.GetCmd() == 'reset'):
             self.FSM.ToTransition("toIdle")
-            print "Complete - Time elapsed: ", (int(time.time()) - self.startTime)
+
+        if(self.startTime + 2 <=  int(time.time())):
+            #print ("STATE = COMPLETE")
+            self.startTime = int(time.time())
 
 # --------- Aborted -------- #
 class Aborted(State):
@@ -93,13 +109,15 @@ class Aborted(State):
         super(Aborted, self).__init__(FSM)
 
     def Enter(self):
-        print "Aborting!"
+        print "TRANSITION - ABORTING"
         super(Aborted, self).Enter()
 
     def Execute(self):
-        if(self.startTime + self.timer <= time.time()):
+        if(self.FSM.GetCmd() == 'clear'):
             self.FSM.ToTransition("toStopped")
-            print "Aborted - Time elapsed: ", (int(time.time()) - self.startTime)
+        if(self.startTime + 2 <=  int(time.time())):
+            #print ("STATE = ABORTED")
+            self.startTime = int(time.time())
 
 
 #------------------------------------------------------------------#
@@ -113,7 +131,6 @@ class Transition(object):
         pass
         #print "Transitioning..."
 
-
 #------------------------------------------------------------------#
 # FINITE STATE MACHINE - FSM
 
@@ -125,6 +142,7 @@ class FSM(object):
         self.curState = None
         self.prevState = None
         self.trans = None
+        self.cmd = None
 
     def AddTransition(self, transName, transition):
         self.transitions[transName] = transition
@@ -136,12 +154,21 @@ class FSM(object):
         self.prevState = self.curState
         self.curState = self.states[stateName]
 
+    def GetCmd(self):
+        return self.cmd
+
     def ToTransition(self, toTrans):
         self.trans = self.transitions[toTrans]
 
     def Execute(self, cmd):
-        if(cmd == "a"):
+        self.cmd = cmd
+        if(self.cmd == "abort"):
+            self.curState.Exit()
             self.ToTransition("toAborted")
+            self.trans.Execute();
+            self.SetState(self.trans.toState)
+            self.curState.Enter()
+            self.trans = None
         if(self.trans):
             self.curState.Exit()
             self.trans.Execute()
@@ -178,31 +205,59 @@ class PACKML(object):
     def Execute(self, cmd):
         self.FSM.Execute(cmd)
 
+    def GetState(self):
+        states = ["STOPPED", "IDLE", "COMPLETE", "EXECUTE", "ABORTED"]
+        for state in states:
+            if(self.FSM.curState == self.FSM.states[state]):
+                return state
+        return None
+
 #------------------------------------------------------------------#
 # LISENTER CALLBACK FUNCTION
 def callback(data):
     rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
 
 
+#------------------------------------------------------------------#
+# GETCH FOR INPUTS
+import sys, tty, termios
+from getch import getch, pause
+
+cmd = ''
+
+def getch_func():
+    global cmd
+    cmd = raw_input("> ")#getch()
+    print('You pressed:', cmd)
+
+
 if __name__ == '__main__':
 
     rospy.init_node('packml', anonymous=True)
+    pub_state = rospy.Publisher('packml_state', String, queue_size=1)
 
-    #rospy.Subscriber('name', String, callback)
-    #rospy.Publisher('name', String, queue_size=1)
-    #rospy.publish("hej")
 
     pml = PACKML()
 
     startT = int(time.time())
-    cmd = ''
+    inputThread = threading.Thread()
+
 
     while not rospy.is_shutdown():
+        # Starting server if not alive
+        if(not inputThread.isAlive()):
+            inputThread = threading.Thread(target=getch_func, args=())
+            inputThread.daemon = True
+            inputThread.start()
+        # Exit program it q is pressed
+        if(cmd == 'quit'): break;
 
-        if(startT + 7 < time.time()):
-            cmd = "a"
-            startT = time.time()
-
-
+        currentCmd = cmd
         pml.Execute(cmd)
-        cmd = ''
+
+        if((startT + 1 <=  int(time.time())) and (pml.GetState() != None )):
+            pub_state.publish(pml.GetState())
+            startT =  int(time.time())
+
+        if(currentCmd == cmd):
+            cmd = ''
