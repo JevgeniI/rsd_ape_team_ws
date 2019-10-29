@@ -1,4 +1,15 @@
+#!/usr/bin/env python3
+
+import rospy 
 import time
+import requests
+
+import actionlib
+
+#from our_ur.msg import RobotAction, RobotResult, RobotFeedback
+import our_ur.msg
+
+from mes_client import delete_order, put_order, update_order_dict
 
 #------------------------------------------------------------------#
 # STATES
@@ -19,7 +30,6 @@ class State(object):
 
     def Exit(self):
         self.totalTime += self.totalLocalTime
-
 
 
 # --------- STOPPED -------- #
@@ -60,23 +70,124 @@ class Idle(State):
     def Exit(self):
         super(Idle, self).Exit()
 
+
 # --------- Execute -------- #
 class Execute(State):
     def __init__(self, FSM):
         super(Execute, self).__init__(FSM)
-        self.exeState = "getOrder"
-        self.orderActive = false 
+        self.exeState = "waitForMirRobot"
+
+        # Order related
+        self.URL = 'https://localhost:5000/orders'
+        self.order_ticket = None 
+        self.order_status = None 
+        self.order_id = None 
+        self.n_blue = None 
+        self.n_yellow = None 
+        self.n_red = None 
+        self.brick_list = None 
+
+        self.brick_index = 0 
+
+        # Action client 
+        self.client = None 
 
     def Enter(self):
         super(Execute, self).Enter()
+    
+    def Test(self):
+        print("hej") 
+
+    def RobotAction(self, action): 
+        self.client = actionlib.SimpleActionClient('robot', our_ur.msg.RobotAction)
+        goal = our_ur.msg.RobotGoal(instruction = action)
+        self.client.send_goal(goal)
 
     def Execute(self):
 
-        if(self.exeState == "getOrder"): 
-            ## request a new order
+        ## ------------- TRYING TO GET AN ORDER AND TICKET ID ----------- ## 
 
-        elif(self.exeState == "")
+        if(self.exeState == "getOrderFromServer"):
+            try: 
+                resp = requests.get(url=self.URL)
+                data = resp.json()
+                if (len(data['orders'])):
+                    for order in data['orders']:
+                        print(order)
+                        self.order_id = order['id']
+                        self.order_status = order['status']
+                        self.n_yellow = order['yellow']
+                        list_y = [2] * self.n_yellow                ## yellow action = 2
+                        self.n_red = order['red']
+                        list_r = [3] * self.n_red                   ## red action = 3
+                        self.n_blue = order['blue']         
+                        list_b = [4] * self.n_blue                  ## blue action = 4
+
+                        self.brick_list = list_y + list_r + list_b
+
+                        if self.order_status == "taken":
+                            delete_order(self.order_id, order_ticket_dict[str(self.order_id)])
+
+                        elif self.order_status == "undefined":
+                            # if order is undefined, send a DELETE request i guess
+                            pass
+                        elif self.order_status == "ready":
+                            print("Order with id {} is ready! Will attempt to PUT!".format(self.order_id))
+                            self.order_ticket = put_order(self.order_id)
+                            if(self.order_ticket != None):
+                                update_order_dict(order_ticket_dict, self.order_id, self.order_ticket)
+                                self.exeState = "waitForMirRobot"
+                else: 
+                    print("Waiting for new orders ...")
+
+            except: 
+                print("Could not access url: ", self.URL)
+                self.FSM.ToTransition('toStopping')
+                
+        ## ------------- WHEN A ORDER IS READY WE NEED TO WAIT FOR MIR ROBOT TO ARRIVE ----------- ## 
+        elif(self.exeState == "waitForMirRobot"):
+            ## CALL MIR ROBOT WITH SOME COMMAND 
+            ## IF MIRROBOT = IN POISITION THEN NEXT STATE 
+            self.RobotAction(1)                                 ## ACTION = 1 - INDICATE PICKUP BOXES FROM MIR ROBOT     
+            self.exeState = "waitPickupBox"
+
+        ## ------------- WHEN MIR ROBOT IS IN POSITION WE MUST GET THE BOXES FROM THE ROBOT ----------- ## 
+        elif(self.exeState == "waitPickupBox"): 
+            ## Wait for the result to be different from None 
+            if(self.client.get_result() != None):
+                if(self.client_result() == True):
+                    self.exeState = "pickUpBrick"
+                else:
+                    ## Maybe we should stop the system if the action failed
+                    print("error")
+
+        ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ## 
+        elif(self.exeState == "pickUpBrick"): 
+            if( self.brick_index < len(self.brick_list)):                       ## Keep track of the brick index is less than the size of the brick_lsit 
+                self.RobotAction(self.brick_list[self.brick_index])            ## Send action to robot 
+                self.exeState = "waitPickUpBrickDone"
+            else:
+                ## done itteration through bricks 
+                self.exeState = "orderComplete"
+
+
+        ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ## 
+        elif(self.exeState == "waitPickUpBrickDone"):
+            if(self.client.get_result() != None): 
+                if(self.client.get_result() == True):
+                    print ("Done picking up brick!")
         
+
+        ## ------------- WHEN ALL THE BRICKS HAVE BEEN PICKED AND PLACED ----------- ## 
+        elif(self.exeState == "orderComplete"):
+            print ("JUBIIIII")
+
+
+        ## ------------- WHEN THERE IS AN ERROR IN THE STATE NAME ----------- ## 
+        else: 
+            print ("STATE NAMING ERROR!")
+
+
 
         if(self.FSM.GetCmd() == 'hold'):
             self.FSM.ToTransition("toHolding")
@@ -90,6 +201,8 @@ class Execute(State):
 
     def Exit(self):
         super(Execute, self).Exit()
+
+
 
 # --------- Complete -------- #
 class Complete(State):
