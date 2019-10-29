@@ -1,123 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import rospy
 import time
 import threading
-from std_msgs.msg import String
+#from std_msgs.msg import String
+from our_ur.msg import StateMsg
 
-#------------------------------------------------------------------#
-# STATES
-
-class State(object):
-    def __init__(self, FSM):
-        self.FSM = FSM
-        self.timer = 0
-        self.startTime = 0
-
-    def Enter(self):
-        self.timer = 5
-        self.startTime = int(time.time())
-
-    def Exceute(self):
-        pass
-
-    def Exit(self):
-        pass
-
-# --------- STOPPED -------- #
-class Stopped(State):
-    def __init__(self, FSM):
-        super(Stopped, self).__init__(FSM)
-
-    def Enter(self):
-        if(self.FSM.prevState == self.FSM.states["ABORTED"]):
-            print "TRANSITION - CLEARING"
-        else:
-            print "TRANSITION - STOPPING"
-        super(Stopped, self).Enter()
-
-    def Execute(self):
-        if(self.FSM.GetCmd() == 'reset'):
-            self.FSM.ToTransition("toIdle")
-
-        if(self.startTime + 2 <=  int(time.time())):
-            #print ("STATE = STOPPED")
-            self.startTime = int(time.time())
-
-# --------- IDLE -------- #
-class Idle(State):
-    def __init__(self, FSM):
-        super(Idle, self).__init__(FSM)
-
-    def Enter(self):
-        print "TRANSITION - RESETTING"
-        super(Idle, self).Enter()
-
-    def Execute(self):
-        if(self.FSM.GetCmd() == 'stop'):
-            self.FSM.ToTransition("toStopped")
-        if(self.FSM.GetCmd() == 'start'):
-            self.FSM.ToTransition("toExecute")
-
-        if(self.startTime + 2 <=  int(time.time())):
-            #print ("STATE = IDLE")
-            self.startTime = int(time.time())
-
-
-# --------- Execute -------- #
-class Execute(State):
-    def __init__(self, FSM):
-        super(Execute, self).__init__(FSM)
-
-    def Enter(self):
-        print "TRANSITION - STARTING"
-        super(Execute, self).Enter()
-
-    def Execute(self):
-        if(self.FSM.GetCmd() == 'stop'):
-            self.FSM.ToTransition("toStopped")
-        if(self.FSM.GetCmd() == 'sc'):
-            self.FSM.ToTransition("toComplete")
-
-        if(self.startTime + 2 <=  int(time.time())):
-            #print ("STATE = EXECUTE")
-            self.startTime = int(time.time())
-
-
-
-# --------- Complete -------- #
-class Complete(State):
-    def __init__(self, FSM):
-        super(Complete, self).__init__(FSM)
-
-    def Enter(self):
-        print "TRANSITION - COMPLETING"
-        super(Complete, self).Enter()
-
-    def Execute(self):
-        if(self.FSM.GetCmd() == 'stop'):
-            self.FSM.ToTransition("toStopped")
-        if(self.FSM.GetCmd() == 'reset'):
-            self.FSM.ToTransition("toIdle")
-
-        if(self.startTime + 2 <=  int(time.time())):
-            #print ("STATE = COMPLETE")
-            self.startTime = int(time.time())
-
-# --------- Aborted -------- #
-class Aborted(State):
-    def __init__(self, FSM):
-        super(Aborted, self).__init__(FSM)
-
-    def Enter(self):
-        print "TRANSITION - ABORTING"
-        super(Aborted, self).Enter()
-
-    def Execute(self):
-        if(self.FSM.GetCmd() == 'clear'):
-            self.FSM.ToTransition("toStopped")
-        if(self.startTime + 2 <=  int(time.time())):
-            #print ("STATE = ABORTED")
-            self.startTime = int(time.time())
+from packml_states import Stopped, Stopping, Starting, Execute, Complete, Completing, Holding, Held, Unholding, Suspending, Suspended, Unsuspending, Idle, Aborting, Aborted, Clearing, Resetting
 
 
 #------------------------------------------------------------------#
@@ -130,6 +18,7 @@ class Transition(object):
     def Execute(self):
         pass
         #print "Transitioning..."
+
 
 #------------------------------------------------------------------#
 # FINITE STATE MACHINE - FSM
@@ -162,25 +51,18 @@ class FSM(object):
 
     def Execute(self, cmd):
         self.cmd = cmd
-        if(self.cmd == "abort"):
-            self.curState.Exit()
-            self.ToTransition("toAborted")
-            self.trans.Execute();
-            self.SetState(self.trans.toState)
-            self.curState.Enter()
-            self.trans = None
-        if(self.trans):
-            self.curState.Exit()
-            self.trans.Execute()
-            self.SetState(self.trans.toState)
-            self.curState.Enter()
-            self.trans = None
-        self.curState.Execute()
+        
+        if(self.trans):                             # If some other transaction have been set (Add self.curState.Exit() in begin if some exit function is needed)
+            self.curState.Exit()                    # Saving timer value to class 
+            self.SetState(self.trans.toState)       # Set the new current state 
+            self.curState.Enter()                   # Enter the current state (start the time in that state)
+            self.trans = None                       # Set transaction back to none
+
+        self.curState.Execute()                     # Finally execute the current state 
 
 #------------------------------------------------------------------#
-# PACKML
+# PACKML STATE MACHINE
 
-#Char = type("Char", (object), {})
 
 class PACKML(object):
     def __init__(self):
@@ -192,21 +74,55 @@ class PACKML(object):
         self.FSM.AddState("COMPLETE", Complete(self.FSM))
         self.FSM.AddState("EXECUTE", Execute(self.FSM))
         self.FSM.AddState("ABORTED", Aborted(self.FSM))
+        self.FSM.AddState("HELD", Held(self.FSM))
+        self.FSM.AddState("SUSPENDED", Suspended(self.FSM))
+
+        #TRANSISTION STATES 
+        self.FSM.AddState("STOPPING", Stopping(self.FSM))
+        self.FSM.AddState("RESETTING", Resetting(self.FSM))
+        self.FSM.AddState("STARTING", Starting(self.FSM))
+        self.FSM.AddState("COMPLETING", Completing(self.FSM))
+        self.FSM.AddState("ABORTING", Aborting(self.FSM))
+        self.FSM.AddState("CLEARING", Clearing(self.FSM))
+        self.FSM.AddState("SUSPENDING", Suspending(self.FSM))
+        self.FSM.AddState("UNSUSPENDING", Unsuspending(self.FSM))
+        self.FSM.AddState("HOLDING", Holding(self.FSM))
+        self.FSM.AddState("UNHOLDING", Unholding(self.FSM))
 
         #TRANSITIONS
         self.FSM.AddTransition("toStopped", Transition("STOPPED"))
         self.FSM.AddTransition("toIdle", Transition("IDLE"))
         self.FSM.AddTransition("toComplete", Transition("COMPLETE"))
         self.FSM.AddTransition("toExecute", Transition("EXECUTE"))
-        self.FSM.AddTransition ("toAborted", Transition("ABORTED"))
+        self.FSM.AddTransition("toAborted", Transition("ABORTED"))
+        self.FSM.AddTransition("toHeld", Transition("HELD"))
+        self.FSM.AddTransition("toSuspended", Transition("SUSPENDED"))
 
-        self.FSM.SetState("IDLE")
+
+        self.FSM.AddTransition("toStopping", Transition("STOPPING"))
+        self.FSM.AddTransition("toResetting", Transition("RESETTING"))
+        self.FSM.AddTransition("toStarting", Transition("STARTING"))
+        self.FSM.AddTransition("toCompleting", Transition("COMPLETING"))
+        self.FSM.AddTransition("toAborting", Transition("ABORTING"))
+        self.FSM.AddTransition("toClearing", Transition("CLEARING"))
+        self.FSM.AddTransition("toSuspending", Transition("SUSPENDING"))
+        self.FSM.AddTransition("toUnsuspending", Transition("UNSUSPENDING"))
+        self.FSM.AddTransition("toHolding", Transition("HOLDING"))
+        self.FSM.AddTransition("toUnholding", Transition("UNHOLDING"))
+
+
+        self.FSM.SetState("STOPPED")
+        self.FSM.curState.Enter()
 
     def Execute(self, cmd):
+        if(cmd == 'abort'): self.FSM.ToTransition("toAborting")
         self.FSM.Execute(cmd)
 
-    def GetState(self):
-        states = ["STOPPED", "IDLE", "COMPLETE", "EXECUTE", "ABORTED"]
+    def GetStateTime(self):
+        return (self.FSM.curState.totalTime + self.FSM.curState.totalLocalTime)
+
+    def GetStateName(self):
+        states = ["STOPPED", "IDLE", "COMPLETE", "EXECUTE", "ABORTED", "HELD", "SUSPENDED", "STOPPING", "RESETTING", "STARTING", "COMPLETING", "ABORTING", "CLEARING", "SUSPENDING", "UNSUSPENDING", "HOLDING", "UNHOLDING"]
         for state in states:
             if(self.FSM.curState == self.FSM.states[state]):
                 return state
@@ -221,7 +137,7 @@ def callback(data):
 #------------------------------------------------------------------#
 # GETCH FOR INPUTS
 import sys, tty, termios
-from getch import getch, pause
+from getch import getch
 
 cmd = ''
 ready = False
@@ -229,7 +145,7 @@ ready = False
 def getch_func():
     global cmd, ready
     ready = False
-    cmd = raw_input("> ")#getch()
+    cmd = input("> ")
     print('You pressed:', cmd)
     ready = True
 
@@ -237,7 +153,9 @@ def getch_func():
 if __name__ == '__main__':
 
     rospy.init_node('packml', anonymous=True)
-    pub_state = rospy.Publisher('packml_state', String, queue_size=1)
+    pub_state = rospy.Publisher('packml_state_info', StateMsg, queue_size = 1)
+
+    r = rospy.Rate(30) ## 10 HERTZ
 
 
     pml = PACKML()
@@ -250,7 +168,7 @@ if __name__ == '__main__':
         # saving command if it is ready
         if(ready):
             command = cmd
-            ready = False;
+            ready = False
         else:
             command = ''
         # Starting input thread if not alive
@@ -260,12 +178,17 @@ if __name__ == '__main__':
             inputThread.start()
 
         # Exit program it q is pressed
-        if(command == 'quit'): break;
+        if(command == 'quit'): break
 
         # The main state machine is executed.
         pml.Execute(command)
 
         # Publish the current state every 1 secound
-        if((startT + 1 <=  int(time.time())) and (pml.GetState() != None )):
-            pub_state.publish(pml.GetState())
+        if((pml.GetStateName() != None )):
+            msg = StateMsg()
+            msg.name = pml.GetStateName()
+            msg.time = pml.GetStateTime()/1000
+            pub_state.publish(msg)
             startT =  int(time.time())
+        
+        r.sleep()

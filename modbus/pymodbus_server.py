@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Pymodbus Server With Callbacks
 --------------------------------------------------------------------------
@@ -10,18 +10,9 @@ a device-mapping file.
 # --------------------------------------------------------------------------- #
 # import the modbus libraries we need
 # --------------------------------------------------------------------------- #
-<<<<<<< Updated upstream
-#from pymodbus.server.asynchronous import StartTcpServer
 from pymodbus.server.sync import StartTcpServer
-
-#from pymodbus.server.asynchronous import StartUdpServer
-#from pymodbus.server.asynchronous import StartSerialServer
-
-=======
-from pymodbus.server.sync import StartTcpServer
->>>>>>> Stashed changes
 from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.datastore import ModbusSparseDataBlock
+from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSparseDataBlock
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
 from pymodbus.transaction import ModbusRtuFramer, ModbusAsciiFramer
 
@@ -40,7 +31,7 @@ import time
 import logging
 logging.basicConfig()
 log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+#log.setLevel(logging.DEBUG)
 
 # --------------------------------------------------------------------------- #
 # create your custom data block with callbacks
@@ -54,27 +45,11 @@ store = ModbusSlaveContext(di=block,co=block,hr=block,ir=block)
 # ir --> Input register initalizer
 context = ModbusServerContext(slaves=store, single=True)
 
+identity = ModbusDeviceIdentification()
+
+
 
 def run_sync_server():
-
-class CallbackDataBlock(ModbusSparseDataBlock):
-    """ A datablock that stores the new value in memory
-    and passes the operation to a message queue for further
-    processing.
-    """
-
-    def __init__(self, address):
-
-
-    def setValues(self, address, value):
-        """ Sets the requested values of the datastore
-
-        :param address: The starting address
-        :param values: The new values to be set
-        """
-        super(CallbackDataBlock, self).setValues(address, value)
-        self.queue.put((self.devices.get(address, None), value))
-
     # TCP Server
     StartTcpServer(context, identity=identity, address=("localhost", 5020))#,custom_functions=[CustomModbusRequest])
 
@@ -93,12 +68,12 @@ if __name__ == "__main__":
 
     try:
         while True:
-            print " **** main running **** "
+            print (" **** main running **** ")
 
             # HOW TO READ REGISTER VALUES FROM A ADDRESS SERVERSIDE (0x00 - 0x09)
-            print "{} {}".format("Register address 0x00 = ",get_register_value(0x00)[0])
-            print "{} {}".format("Register address 0x01 = ",get_register_value(0x01)[0])
-            print "{} {}".format("Register address 0x02 = ",get_register_value(0x02)[0])
+            print ("Register address 0x00 = ", get_register_value(0x00)[0])
+            print ("Register address 0x01 = ", get_register_value(0x01)[0])
+            print ("Register address 0x02 = ", get_register_value(0x02)[0])
             time.sleep(2)
 
             # HOW TO SET A REGISTER VALUE FROM A ADDRESS SERVERSIE (0x00 - 0x09)
@@ -106,4 +81,4 @@ if __name__ == "__main__":
             time.sleep(2)
 
     except KeyboardInterrupt:
-        print "Exiting program ..."
+        print ("Exiting program ...")

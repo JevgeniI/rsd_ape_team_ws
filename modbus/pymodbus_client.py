@@ -1,8 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+from pymodbus.client.sync import ModbusTcpClient
 
-
-The following is an example of how to use the synchronous modbus client
-implementation from pymodbus.
 
 if __name__ == "__main__":
     with ModbusTcpClient(host='localhost', port=5020) as client:
@@ -14,10 +12,10 @@ if __name__ == "__main__":
 
         # HOW TO READ REGISTER VALUES FROM A ADDRESS CLIENTSIDE (0x00 - 0x09)
         response = client.read_holding_registers(0x00, 1, unit=1) # Maximum 16-bit ( 0 to 65535 )
-        print response.function_code
+        print (response.function_code)
         if(response.function_code == 3):
-            print "{} {}".format("Register address 0x00= ", response.registers[0])
+            print ("Register address 0x00= ", response.registers[0])
 
         if(response.function_code == 131):
-            print "Illigal address!"
+            print ("Illigal address!")
         client.close()
