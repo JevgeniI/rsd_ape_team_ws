@@ -1,0 +1,8 @@
+#goal definition
+int32 instruction
+---
+#result definition
+bool success
+---
+#feedback
+int32 test
