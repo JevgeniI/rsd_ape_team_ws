@@ -8,32 +8,44 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/video.hpp>
 #include <unistd.h>
+#include <queue>
+#include <deque>
 
 
+template <typename T, int MaxLen, typename Container=std::deque<T>>
+class FixedQueue : public std::queue<T, Container> {
+public:
+    void push(const T& value) {
+        if (this->size() == MaxLen) {
+           this->c.pop_front();
+        }
+        std::queue<T, Container>::push(value);
+    }
+
+    cv::Mat avg_imgs()
+    {
+        cv::Mat ret_img = cv::Mat::zeros( this->c.front().size(), CV_8UC3 );
+        
+        for (int i = 0; i < this->size(); i++)
+        {
+            ret_img += this->c[i];
+            // cv::add(ret)
+        }
+        return ret_img / this->size();
+    }
+};
 
 // // Red params
-int low_red[] = {20, 0, 0};    
+int low_red[] = {160, 120, 0};    
 int high_red[] = {180, 255, 255};
-// int k_erode = 5;
-// int k_dilate = 11;
-// int erosion_iterations = 5;
-// int dilation_iterations = 2;
 
 // // Yellow params
-int low_yellow[] = {10, 70, 0};    
-int high_yellow[] = {30, 255, 255};
-// int k_erode = 5;
-// int k_dilate = 11;
-// int erosion_iterations = 5;
-// int dilation_iterations = 2;
+int low_yellow[] = {20, 120, 0};    
+int high_yellow[] = {35, 255, 255};
 
 // // Blue params
 int low_blue[] = {100, 120, 0};    
 int high_blue[] = {140, 255, 255};
-// int k_erode = 5;
-// int k_dilate = 11;
-// int erosion_iterations = 5;
-// int dilation_iterations = 2;
 
 cv::RNG rng(12345);
 
@@ -103,9 +115,9 @@ static void on_high_V_thresh_trackbar(int, void *)
     cv::setTrackbarPos("High V", window_processed_name, high_V);
 }
 
-void process_img(cv::Mat& src, int low[], int high[], int k_erosion=5, int k_dilation=5, int erosion_iterations = 5, int dilation_iterations = 5)
+void process_img(cv::Mat& src, cv::Mat& drawing, std::string color_name, int low[], int high[], int k_erosion=5, int k_dilation=5, int erosion_iterations = 5, int dilation_iterations = 5)
 {
-    int filter_size = 9;
+    int filter_size = 29;
     cv::Mat src_hsv;
     cv::GaussianBlur(src, src, cv::Size(filter_size, filter_size), 0);
     cv::cvtColor(src, src_hsv, cv::COLOR_BGR2HSV);
@@ -114,54 +126,44 @@ void process_img(cv::Mat& src, int low[], int high[], int k_erosion=5, int k_dil
     cv::Mat structuring_element_erosion = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k_erosion, k_erosion));
     cv::Mat structuring_element_dilation = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k_dilation, k_dilation));
     cv::dilate(dst, dst, structuring_element_dilation, cv::Point(-1, -1), dilation_iterations);
-    cv::erode(dst, dst, structuring_element_erosion, cv::Point(-1, -1), erosion_iterations);    
-    // cv::dilate(dst, dst, structuring_element_dilation, cv::Point(-1, -1), 3);
+    cv::erode(dst, dst, structuring_element_erosion, cv::Point(-1, -1), erosion_iterations); 
+
+    int thresh = 50;
+    cv::Mat canny;
+    std::vector<std::vector<cv::Point> > contours;
+    std::vector<cv::Vec4i> hierarchy;
+    cv::Canny( dst, canny, thresh, thresh*2, 3 );
+    cv::findContours( canny, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0) );
+
+    // minimum enclosing rectangles
+    std::vector<cv::RotatedRect> minRect( contours.size() );
+
+    for (int i = 0; i < contours.size(); i++)
+    {
+        minRect[i] = cv::minAreaRect(cv::Mat(contours[i]));
+        // std::cout << minRect_red[i].size << std::endl;
+    }
+
+    /// Draw contours
+    for( int i = 0; i< contours.size(); i++ )
+    {
+        // draw contour    
+        cv::Scalar color = cv::Scalar(rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+        drawContours( drawing, contours, i, color, 2, 8, hierarchy, 0, cv::Point() );
+        // rotated rectangle
+        cv::Point2f rect_points[4]; minRect[i].points( rect_points );
+        for( int j = 0; j < 4; j++ )
+            line( drawing, rect_points[j], rect_points[(j+1)%4], color, 1, 8 );
+        cv::putText(drawing, color_name, rect_points[1], cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 255, 255));
+    }
 
     src = dst;
 }
 
 
-bool is_yellow_brick(cv::Mat yellow_img)
-{
-    for (int i = 0; i < yellow_img.rows; i++)
-    {
-        for (int j = 0; j < yellow_img.cols; j++)
-        {
-            return -1;
-        }
-    }
-}
-
 int main(int argc, char** argv)
 {
 
-    // std::cout << "\nNote that the reflections of the bricks off the walls \
-    //     of the container are also counted!!" << std::endl;
-    // std::vector<cv::String> fn;
-    // cv::glob("../lego_images/*.jpg", fn, false);
-
-    // std::vector<cv::Mat> images;
-    // size_t count = fn.size(); //number of png files in images folder
-    // for (size_t i=0; i<count; i++)
-    //     images.push_back(cv::imread(fn[i], cv::IMREAD_COLOR));
-
-
-    // for (size_t i=0; i< images.size(); i++)
-    // {
-    //     if (images[i].empty())
-    //         {
-    //             std::cout << "Could not open/find the image" << std::endl;
-                
-    //             return -1;
-    //         }
-
-        
-    //     process_img(images[i], low_red, high_red); //, k_erode, k_dilate, erosion_iterations, dilation_iterations);
-    //     std::string dst_path = "../processed_images/" + std::to_string(i+1);
-    //     cv::imwrite(dst_path + ".jpg", images[i]);
-    //     std::cout << dst_path << std::endl;
-
-    // }
 
     cv::namedWindow(window_original_name, cv::WINDOW_NORMAL);
     cv::namedWindow(window_processed_name, cv::WINDOW_NORMAL);
@@ -185,11 +187,16 @@ int main(int argc, char** argv)
     }
 
     cv::Mat frame;
-    cv::Mat src, red_img, yellow_img, blue_img;
-    // x 150-500
-    // y 60-360
+    cv::Mat src, red_img, yellow_img, blue_img, canny_red, canny_yellow, canny_blue;
+    std::vector<std::vector<cv::Point> > contours_red, contours_yellow, contours_blue;
+    std::vector<cv::Vec4i> hierarchy_red, hierarchy_yellow, hierarchy_blue;
+
     cv::Range rows(60, 360);
     cv::Range cols(150, 500);
+    FixedQueue<cv::Mat, 30> q_red;
+    FixedQueue<cv::Mat, 30> q_yellow;
+    FixedQueue<cv::Mat, 30> q_blue;
+
     while(capture)
     {
         // std::cout << "Finally.." << std::endl;
@@ -199,45 +206,36 @@ int main(int argc, char** argv)
         red_img = frame.clone();
         yellow_img = frame.clone();
         blue_img = frame.clone();
-        int low_new[] = {low_H, low_S, low_V};
-        int high_new[] = {high_H, high_S, high_V};
-        process_img(red_img, low_red, high_red); // , k_erode, k_dilate, erosion_iterations, dilation_iterations);
-        bitwise_not(red_img, red_img);
-        process_img(yellow_img, low_yellow, high_yellow);
-        process_img(blue_img, low_blue, high_blue);
-        
+        cv::Mat drawing = cv::Mat::zeros( frame.size(), CV_8UC3 );
+        process_img(red_img, drawing, "red",low_red, high_red); // , k_erode, k_dilate, erosion_iterations, dilation_iterations);
+        // bitwise_not(red_img, red_img);
+        process_img(yellow_img, drawing, "yellow", low_yellow, high_yellow);
+        process_img(blue_img, drawing, "blue",low_blue, high_blue);
+        q_red.push(red_img);
+        q_yellow.push(yellow_img);
+        q_blue.push(blue_img);
+        red_img = q_red.avg_imgs();
+        yellow_img = q_yellow.avg_imgs();
+        blue_img = q_blue.avg_imgs();
         cv::bitwise_or(red_img, yellow_img, frame);
         cv::bitwise_or(frame, blue_img, frame);
         
-        // Cotours
-        cv::Mat canny_output;
-        int thresh = 50;
-        cv::Canny( frame, canny_output, thresh, thresh*2, 3 );
-        std::vector<std::vector<cv::Point> > contours;
-        std::vector<cv::Vec4i> hierarchy;
-        cv::findContours( canny_output, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0) );
-        cv::minAreaRect(contours);
-        
-        /// Draw contours
-        cv::Mat drawing = cv::Mat::zeros( canny_output.size(), CV_8UC3 );
-        for( int i = 0; i< contours.size(); i++ )
-            {
-            cv::Scalar color = cv::Scalar(rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-            drawContours( drawing, contours, i, color, 2, 8, hierarchy, 0, cv::Point() );
-            }
+
 
 
         // Display
         cv::imshow(window_original_name, src);
-        cv::resizeWindow (window_original_name, 600, 600);
+        cv::resizeWindow (window_original_name, 300, 300);
         cv::moveWindow (window_original_name, 0, 0);
 
         cv::imshow(window_processed_name, frame);
-        cv::resizeWindow (window_processed_name, 600, 600);
+        cv::resizeWindow (window_processed_name, 300, 300);
         cv::moveWindow (window_processed_name, 700, 0);
 
         /// Show in a window
-        cv::namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
+        cv::namedWindow( "Contours", CV_WINDOW_NORMAL );
+        cv::resizeWindow ("Contours", 300, 300);
+        cv::moveWindow ("Contours", 300, 0);
         cv::imshow( "Contours", drawing );
 
 
@@ -246,8 +244,6 @@ int main(int argc, char** argv)
         {
             break;
         }
-        // cv::imwrite("/home/mohamed/Desktop/frame.png", frame);
-        // usleep(3000);
     }
     
 
