@@ -111,16 +111,16 @@ class Packml_GUI(QThread):
         self.disable_all_frames()
         # self.enable_frame()
 
-    def __init__(self):
+    def __init__(self, UI_file ="RSD_GUI.ui" , PackML_image_file="PackML.png"):
         QThread.__init__(self)
-        ui_file = QFile(os.path.dirname(os.path.realpath(__file__)) + "/RSD_GUI.ui")
-        if(not ui_file.open(QFile.ReadOnly)):
-            print ("Couldn't find ui file")
-            return 
+
+        ui_file = QFile(UI_file)
+        ui_file.open(QFile.ReadOnly)
 
         loader = QUiLoader()
         self.main_window = loader.load(ui_file)
         # self.main_window.
+        self.main_window.labelImage.setPixmap(PackML_image_file)
         self.disable_all_frames()
         self.CurrentStateIndex = 9
         self.BoolErrorMessage = False
