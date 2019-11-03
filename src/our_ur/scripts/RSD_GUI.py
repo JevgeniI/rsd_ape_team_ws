@@ -82,7 +82,7 @@ class Packml_GUI(QThread):
             self.CurrentStateIndex = 4
         elif state == "COMPLETING":
             self.CurrentStateIndex = 5
-        elif state == "EXECUTING":
+        elif state == "EXECUTE":
             self.CurrentStateIndex = 6
         elif state == "HELD":
             self.CurrentStateIndex = 7
@@ -90,7 +90,7 @@ class Packml_GUI(QThread):
             self.CurrentStateIndex = 8
         elif state == "IDLE":
             self.CurrentStateIndex = 9
-        elif state == "RESETING":
+        elif state == "RESETTING":
             self.CurrentStateIndex = 10
         elif state == "STARTING":
             self.CurrentStateIndex = 11
@@ -111,7 +111,7 @@ class Packml_GUI(QThread):
         self.disable_all_frames()
         # self.enable_frame()
 
-    def __init__(self, UI_file ="RSD_GUI.ui" , PackML_image_file="PackML.png"):
+    def __init__(self, UI_file =os.path.dirname(os.path.realpath(__file__)) + "/RSD_GUI.ui" , PackML_image_file= os.path.dirname(os.path.realpath(__file__)) + "/PackML.png"):
         QThread.__init__(self)
 
         ui_file = QFile(UI_file)

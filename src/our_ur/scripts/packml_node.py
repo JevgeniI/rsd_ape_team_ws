@@ -147,30 +147,57 @@ class PACKML(object):
 cmd = ''
 
 class Communicate(QObject):                                                 
- # create a new signal on the fly and name it 'speak'                       
- speak = Signal(str)    
+    currentState = Signal(str)    
+    currentError = Signal(str)    
+    currentTime = Signal(int)    
+    
+def start_func():
+    global cmd 
+    cmd = "start"
+    print ("CMD:", cmd)
+    
+def stop_func():
+    global cmd
+    cmd = "stop"
+    print ("CMD:", cmd)
 
-def test_func(GUI):
+def reset_func():
+    global cmd
+    cmd = "reset"
+    print ("CMD:", cmd)
+
+def hold_func():
+    global cmd
+    cmd = "hold"
+    print ("CMD:", cmd)
+
+def state_machine(GUI):
     print ("Making connection")
 
     ## PACKML FSM 
     pml = PACKML()
 
-    someone = Communicate()                                                     
+    PML_GUI = Communicate()     
+
     # connect signal and slot                                                   
-    someone.speak.connect(GUI.CurrentState)
-    someone.speak.connect(GUI.Error_message)
+    PML_GUI.currentState.connect(GUI.CurrentState)
+    PML_GUI.currentError.connect(GUI.Error_message)
+    PML_GUI.currentTime.connect(GUI.Uptime_value) 
+    
+    global cmd
 
+    prevState = None 
     while not rospy.is_shutdown():
-        print ("Next state: ")
-        cmd = input("> ")
-        someone.speak.emit(cmd)
-
-        # The main state machine is executed.
+        if (prevState != pml.GetStateName()):
+            PML_GUI.currentState.emit(pml.GetStateName())
+            prevState = pml.GetStateName() 
+        
         pml.Execute(cmd)
 
-        state = pml.GetStateName()
-        time = pml.GetStateTime()/1000
+        if(cmd != ''):
+            cmd = ''
+
+        PML_GUI.currentTime.emit(pml.GetStateTime()/1000)
         
         r.sleep()
         
@@ -185,26 +212,22 @@ if __name__ == '__main__':
 
     r = rospy.Rate(30) ## 10 HERTZ
 
-    ## TIMER FOR PUBLISH AND INPUT THREAD
+    ## Setting up application and GUI part 
     QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
 
     GUI = Packml_GUI()
     GUI.start()
-    inputThread = threading.Thread(target=test_func, args=[GUI])
+
+    GUI.StopButtonPressed.connect(stop_func)
+    GUI.StartButtonPressed.connect(start_func)
+    GUI.ResetButtonPressed.connect(reset_func)
+    GUI.PauseButtonPressed.connect(hold_func)
+
+
+    ## Main state machine code running in seperate thread
+    inputThread = threading.Thread(target=state_machine, args=[GUI])
     inputThread.daemon = True
     inputThread.start()
     sys.exit(app.exec_())
-
-
-    while not rospy.is_shutdown():
-        # saving command if it is ready
-
-        # The main state machine is executed.
-        pml.Execute(cmd)
-
-        state = pml.GetStateName()
-        time = pml.GetStateTime()/1000
-        
-        r.sleep()
         
