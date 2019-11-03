@@ -85,9 +85,9 @@ class Execute(State):
         self.n_blue = None 
         self.n_yellow = None 
         self.n_red = None 
-        self.brick_list = None 
+        self.action_list = None 
 
-        self.brick_index = 0 
+        self.action_index = 0 
 
         # Action client 
         self.client = None 
@@ -123,7 +123,7 @@ class Execute(State):
                         self.n_blue = order['blue']         
                         list_b = [4] * self.n_blue                  ## blue action = 4
 
-                        self.brick_list = list_y + list_r + list_b
+                        self.action_list = list_y + list_r + list_b
 
                         if self.order_status == "taken":
                             delete_order(self.order_id, order_ticket_dict[str(self.order_id)])

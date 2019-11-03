@@ -1,6 +1,7 @@
 import sys
 import time
 import threading
+import os
 
 from PySide2.QtWidgets import QApplication, QMainWindow
 from PySide2.QtCore import *
@@ -112,8 +113,10 @@ class Packml_GUI(QThread):
 
     def __init__(self):
         QThread.__init__(self)
-        ui_file = QFile("RSD_GUI.ui")
-        ui_file.open(QFile.ReadOnly)
+        ui_file = QFile(os.path.dirname(os.path.realpath(__file__)) + "/RSD_GUI.ui")
+        if(not ui_file.open(QFile.ReadOnly)):
+            print ("Couldn't find ui file")
+            return 
 
         loader = QUiLoader()
         self.main_window = loader.load(ui_file)
@@ -202,6 +205,3 @@ if __name__ == "__main__":
     inputThread.daemon = True
     inputThread.start()
     sys.exit(app.exec_())
-    
-    
-    

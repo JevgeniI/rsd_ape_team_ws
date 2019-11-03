@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
+import sys
+import time
 import rospy
 import time
 import threading
+
+# GETCH FOR INPUTS
+import tty, termios
+from getch import getch
+
+from PySide2.QtWidgets import QApplication, QMainWindow
+from PySide2.QtCore import *
+from PySide2.QtUiTools import QUiLoader
+
 #from std_msgs.msg import String
 from our_ur.msg import StateMsg
 
 from packml_states import Stopped, Stopping, Starting, Execute, Complete, Completing, Holding, Held, Unholding, Suspending, Suspended, Unsuspending, Idle, Aborting, Aborted, Clearing, Resetting
+
+
+from RSD_GUI import Packml_GUI, IndexToFrame
+
 
 
 #------------------------------------------------------------------#
@@ -128,67 +143,68 @@ class PACKML(object):
                 return state
         return None
 
-#------------------------------------------------------------------#
-# LISENTER CALLBACK FUNCTION
-def callback(data):
-    rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
-
-
-#------------------------------------------------------------------#
-# GETCH FOR INPUTS
-import sys, tty, termios
-from getch import getch
 
 cmd = ''
-ready = False
 
-def getch_func():
-    global cmd, ready
-    ready = False
-    cmd = input("> ")
-    print('You pressed:', cmd)
-    ready = True
+class Communicate(QObject):                                                 
+ # create a new signal on the fly and name it 'speak'                       
+ speak = Signal(str)    
+
+def test_func(GUI):
+    print ("Making connection")
+
+    ## PACKML FSM 
+    pml = PACKML()
+
+    someone = Communicate()                                                     
+    # connect signal and slot                                                   
+    someone.speak.connect(GUI.CurrentState)
+    someone.speak.connect(GUI.Error_message)
+
+    while not rospy.is_shutdown():
+        print ("Next state: ")
+        cmd = input("> ")
+        someone.speak.emit(cmd)
+
+        # The main state machine is executed.
+        pml.Execute(cmd)
+
+        state = pml.GetStateName()
+        time = pml.GetStateTime()/1000
+        
+        r.sleep()
+        
+
 
 
 if __name__ == '__main__':
 
+    ## ROS SETUP
     rospy.init_node('packml', anonymous=True)
     pub_state = rospy.Publisher('packml_state_info', StateMsg, queue_size = 1)
 
     r = rospy.Rate(30) ## 10 HERTZ
 
+    ## TIMER FOR PUBLISH AND INPUT THREAD
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    app = QApplication(sys.argv)
 
-    pml = PACKML()
-
-    startT = int(time.time())
-    inputThread = threading.Thread()
+    GUI = Packml_GUI()
+    GUI.start()
+    inputThread = threading.Thread(target=test_func, args=[GUI])
+    inputThread.daemon = True
+    inputThread.start()
+    sys.exit(app.exec_())
 
 
     while not rospy.is_shutdown():
         # saving command if it is ready
-        if(ready):
-            command = cmd
-            ready = False
-        else:
-            command = ''
-        # Starting input thread if not alive
-        if(not inputThread.isAlive() and not ready):
-            inputThread = threading.Thread(target=getch_func, args=())
-            inputThread.daemon = True
-            inputThread.start()
-
-        # Exit program it q is pressed
-        if(command == 'quit'): break
 
         # The main state machine is executed.
-        pml.Execute(command)
+        pml.Execute(cmd)
 
-        # Publish the current state every 1 secound
-        if((pml.GetStateName() != None )):
-            msg = StateMsg()
-            msg.name = pml.GetStateName()
-            msg.time = pml.GetStateTime()/1000
-            pub_state.publish(msg)
-            startT =  int(time.time())
+        state = pml.GetStateName()
+        time = pml.GetStateTime()/1000
         
         r.sleep()
+        
