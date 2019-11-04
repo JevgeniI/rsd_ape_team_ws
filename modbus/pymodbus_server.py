@@ -51,7 +51,7 @@ identity = ModbusDeviceIdentification()
 
 def run_sync_server():
     # TCP Server
-    StartTcpServer(context, identity=identity, address=("localhost", 5020))#,custom_functions=[CustomModbusRequest])
+    StartTcpServer(context, identity=identity, address=("10.42.0.96", 5020))#,custom_functions=[CustomModbusRequest])
 
 
 def set_register_value(address, value):
