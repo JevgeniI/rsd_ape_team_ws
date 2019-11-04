@@ -9,7 +9,7 @@ import actionlib
 #from our_ur.msg import RobotAction, RobotResult, RobotFeedback
 import our_ur.msg
 
-from mes_client import delete_order, put_order, update_order_dict
+from mes_client import delete_order, put_order, update_order_dict, order_ticket_dict 
 
 #------------------------------------------------------------------#
 # STATES
@@ -75,10 +75,10 @@ class Idle(State):
 class Execute(State):
     def __init__(self, FSM):
         super(Execute, self).__init__(FSM)
-        self.exeState = "waitForMirRobot"
+        self.exeState = "getOrderFromServer"
 
         # Order related
-        self.URL = 'https://localhost:5000/orders'
+        self.URL = 'http://localhost:5000/orders'
         self.order_ticket = None 
         self.order_status = None 
         self.order_id = None 
@@ -95,8 +95,8 @@ class Execute(State):
     def Enter(self):
         super(Execute, self).Enter()
     
-    def Test(self):
-        print("hej") 
+    def GetExecuteState(self):
+        return self.exeState
 
     def RobotAction(self, action): 
         self.client = actionlib.SimpleActionClient('robot', our_ur.msg.RobotAction)
@@ -109,34 +109,42 @@ class Execute(State):
 
         if(self.exeState == "getOrderFromServer"):
             try: 
-                resp = requests.get(url=self.URL)
+                resp = requests.get('http://localhost:5000/orders')
                 data = resp.json()
                 if (len(data['orders'])):
                     for order in data['orders']:
-                        print(order)
                         self.order_id = order['id']
                         self.order_status = order['status']
-                        self.n_yellow = order['yellow']
-                        list_y = [2] * self.n_yellow                ## yellow action = 2
-                        self.n_red = order['red']
-                        list_r = [3] * self.n_red                   ## red action = 3
-                        self.n_blue = order['blue']         
-                        list_b = [4] * self.n_blue                  ## blue action = 4
-
-                        self.action_list = list_y + list_r + list_b
 
                         if self.order_status == "taken":
-                            delete_order(self.order_id, order_ticket_dict[str(self.order_id)])
-
+                            #delete_order(self.order_id, order_ticket_dict[str(self.order_id)])
+                            pass
                         elif self.order_status == "undefined":
                             # if order is undefined, send a DELETE request i guess
                             pass
                         elif self.order_status == "ready":
                             print("Order with id {} is ready! Will attempt to PUT!".format(self.order_id))
                             self.order_ticket = put_order(self.order_id)
+                            print("Ticket", self.order_ticket)
                             if(self.order_ticket != None):
+                                ## Saving the number of yellows
+                                self.n_yellow = order['yellow']
+                                list_y = [2] * self.n_yellow                ## yellow action = 2
+                                self.n_red = order['red']
+                                list_r = [3] * self.n_red                   ## red action = 3
+                                self.n_blue = order['blue']         
+                                list_b = [4] * self.n_blue                ## blue action = 4
+                                self.brick_index = 0 
+
+                                self.action_list = list_y + list_r + list_b
+                                print(self.action_list)
+                                ## Updating dictonary and deleting the order for testing purpose
+                                print("Order with id {} has been taken!".format(self.order_id))
                                 update_order_dict(order_ticket_dict, self.order_id, self.order_ticket)
+                                delete_order(self.order_id, order_ticket_dict[str(self.order_id)])
+
                                 self.exeState = "waitForMirRobot"
+                                break 
                 else: 
                     print("Waiting for new orders ...")
 
@@ -146,10 +154,11 @@ class Execute(State):
                 
         ## ------------- WHEN A ORDER IS READY WE NEED TO WAIT FOR MIR ROBOT TO ARRIVE ----------- ## 
         elif(self.exeState == "waitForMirRobot"):
+
             ## CALL MIR ROBOT WITH SOME COMMAND 
             ## IF MIRROBOT = IN POISITION THEN NEXT STATE 
             self.RobotAction(1)                                 ## ACTION = 1 - INDICATE PICKUP BOXES FROM MIR ROBOT     
-            self.exeState = "waitPickupBox"
+            self.exeState = "pickUpBrick"
 
         ## ------------- WHEN MIR ROBOT IS IN POSITION WE MUST GET THE BOXES FROM THE ROBOT ----------- ## 
         elif(self.exeState == "waitPickupBox"): 
@@ -163,8 +172,8 @@ class Execute(State):
 
         ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ## 
         elif(self.exeState == "pickUpBrick"): 
-            if( self.brick_index < len(self.brick_list)):                       ## Keep track of the brick index is less than the size of the brick_lsit 
-                self.RobotAction(self.brick_list[self.brick_index])            ## Send action to robot 
+            if( self.brick_index < len(self.action_list)):                       ## Keep track of the brick index is less than the size of the brick_lsit 
+                self.RobotAction(self.action_list[self.brick_index])             ## Send action to robot 
                 self.exeState = "waitPickUpBrickDone"
             else:
                 ## done itteration through bricks 

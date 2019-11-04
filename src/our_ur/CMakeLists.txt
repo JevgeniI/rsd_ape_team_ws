@@ -1,12 +1,13 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(our_ur)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
+
+find_package(ur_rtde REQUIRED)
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -155,6 +156,8 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(ur_go_to_pose_service_node ${PROJECT_SOURCE_DIR}/src/ur_go_to_pose_service.cpp)
 add_executable(move_stuff_node ${PROJECT_SOURCE_DIR}/src/move_stuff.cpp)
+
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -170,9 +173,12 @@ add_dependencies(move_stuff_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EX
 target_link_libraries(ur_go_to_pose_service_node
   ${catkin_LIBRARIES}
 )
-target_link_libraries(move_stuff_node
+target_link_libraries(move_stuff_node 
   ${catkin_LIBRARIES}
 )
+
+#target_link_libraries(our_ur PRIVATE ur_rtde::rtde)
+
 #############
 ## Install ##
 #############

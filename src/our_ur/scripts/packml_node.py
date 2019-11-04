@@ -136,6 +136,9 @@ class PACKML(object):
     def GetStateTime(self):
         return (self.FSM.curState.totalTime + self.FSM.curState.totalLocalTime)
 
+    def GetExeState(self): 
+        return self.FSM.states["EXECUTE"].GetExecuteState()
+        
     def GetStateName(self):
         states = ["STOPPED", "IDLE", "COMPLETE", "EXECUTE", "ABORTED", "HELD", "SUSPENDED", "STOPPING", "RESETTING", "STARTING", "COMPLETING", "ABORTING", "CLEARING", "SUSPENDING", "UNSUSPENDING", "HOLDING", "UNHOLDING"]
         for state in states:
@@ -174,6 +177,9 @@ def hold_func():
 def state_machine(GUI):
     print ("Making connection")
 
+    ## Publisher 
+    pub_state = rospy.Publisher('packml_state_info', StateMsg, queue_size = 1)
+
     ## PACKML FSM 
     pml = PACKML()
 
@@ -188,6 +194,11 @@ def state_machine(GUI):
 
     prevState = None 
     while not rospy.is_shutdown():
+        msg = StateMsg()
+        msg.name = pml.GetStateName()
+        msg.time = pml.GetStateTime()/1000
+        pub_state.publish(msg)
+        
         if (prevState != pml.GetStateName()):
             PML_GUI.currentState.emit(pml.GetStateName())
             prevState = pml.GetStateName() 
@@ -196,7 +207,7 @@ def state_machine(GUI):
 
         if(cmd != ''):
             cmd = ''
-
+        PML_GUI.currentError.emit(pml.GetExeState())
         PML_GUI.currentTime.emit(pml.GetStateTime()/1000)
         
         r.sleep()
@@ -209,6 +220,7 @@ if __name__ == '__main__':
     ## ROS SETUP
     rospy.init_node('packml', anonymous=True)
     pub_state = rospy.Publisher('packml_state_info', StateMsg, queue_size = 1)
+
 
     r = rospy.Rate(30) ## 10 HERTZ
 
