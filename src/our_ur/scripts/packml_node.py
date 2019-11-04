@@ -218,7 +218,7 @@ def state_machine(GUI):
 if __name__ == '__main__':
 
     ## ROS SETUP
-    rospy.init_node('packml', anonymous=True)
+    rospy.init_node('packml_node', anonymous=True)
     pub_state = rospy.Publisher('packml_state_info', StateMsg, queue_size = 1)
 
 

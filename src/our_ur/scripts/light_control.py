@@ -19,10 +19,10 @@ def callback(data):
     #print("State name from light control: ", data.name)
 
 if __name__ == '__main__':
-    rospy.init_node('light_node', anonymous=True)
+    rospy.init_node('light_control_node', anonymous=True)
 
     rospy.Subscriber('packml_state_info', StateMsg, callback)
-    rtde_io = rtde_io.RTDEIOInterface("192.168.100.1") # 192.168.100.1
+    rtde_io = rtde_io.RTDEIOInterface("192.168.100.1") # 192.168.100.1        
 
     now = int(time.time()*1000)
 
