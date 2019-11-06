@@ -1,0 +1,5 @@
+<launch>
+  <node name="mes_server_node" pkg="our_ur" type="rsd_2019_app_public.py" />
+  <node name="packml_node" pkg="our_ur" type="packml_node.py" />
+  <node name="light_control_node" pkg="our_ur" type="light_control.py" respawn="false"  />
+</launch>
