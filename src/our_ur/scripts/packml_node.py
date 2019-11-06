@@ -222,7 +222,7 @@ if __name__ == '__main__':
     pub_state = rospy.Publisher('packml_state_info', StateMsg, queue_size = 1)
 
 
-    r = rospy.Rate(30) ## 10 HERTZ
+    r = rospy.Rate(1) ## 10 HERTZ
 
     ## Setting up application and GUI part 
     QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)

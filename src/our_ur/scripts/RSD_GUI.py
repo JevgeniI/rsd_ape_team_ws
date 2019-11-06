@@ -35,22 +35,22 @@ class Packml_GUI(QThread):
 
     @Slot()
     def StopButtonPushed(self):
-        print ( "StopButtonPressed")
+        #print ( "StopButtonPressed")
         self.StopButtonPressed.emit()
     
     @Slot()
     def StartButtonPushed(self):
-        print ( "StartButtonPressed")
+        #print ( "StartButtonPressed")
         self.StartButtonPressed.emit()
     
     @Slot()
     def PauseButtonPushed(self):
-        print ( "PauseButtonPressed")
+        #print ( "PauseButtonPressed")
         self.PauseButtonPressed.emit()
 
     @Slot()
     def ResetButtonPushed(self):
-        print ( "ResetButtonPressed")
+        #print ( "ResetButtonPressed")
         self.ResetButtonPressed.emit()
 
     @Slot(int)

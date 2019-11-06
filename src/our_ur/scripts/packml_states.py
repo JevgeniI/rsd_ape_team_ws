@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
-import rospy 
+import rospy
 import time
 import requests
+
 
 import actionlib
 
 #from our_ur.msg import RobotAction, RobotResult, RobotFeedback
 import our_ur.msg
 
-from mes_client import delete_order, put_order, update_order_dict, order_ticket_dict 
+from mes_client import MesClient 
+from pymodbus_client import ModbusClient
 
 #------------------------------------------------------------------#
 # STATES
@@ -43,10 +45,10 @@ class Stopped(State):
     def Execute(self):
 
         ## WAIT FOR OBERATOR TO RESET THE SYSTEM
-        ## MAYBE WAIT FOR THE SYSTEM TO BE COMPLETLY STOPPED 
+        ## MAYBE WAIT FOR THE SYSTEM TO BE COMPLETLY STOPPED
         if(self.FSM.GetCmd() == 'reset'):
             self.FSM.ToTransition("toResetting")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Stopped, self).Exit()
@@ -58,7 +60,6 @@ class Idle(State):
         super(Idle, self).__init__(FSM)
 
     def Enter(self):
-        print ("TRANSITION - RESETTING")
         super(Idle, self).Enter()
 
     def Execute(self):
@@ -66,7 +67,7 @@ class Idle(State):
             self.FSM.ToTransition("toStopping")
         if(self.FSM.GetCmd() == 'start'):
             self.FSM.ToTransition("toStarting")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
     def Exit(self):
         super(Idle, self).Exit()
 
@@ -76,93 +77,58 @@ class Execute(State):
     def __init__(self, FSM):
         super(Execute, self).__init__(FSM)
         self.exeState = "getOrderFromServer"
+        
+        self.action_list = None
+        self.action_index = 0
 
-        # Order related
-        self.URL = 'http://localhost:5000/orders'
-        self.order_ticket = None 
-        self.order_status = None 
-        self.order_id = None 
-        self.n_blue = None 
-        self.n_yellow = None 
-        self.n_red = None 
-        self.action_list = None 
+        self.startTimer1 = 0
 
-        self.action_index = 0 
+        # MES CLIENT
+        self.MES_URL = 'http://localhost:5000/orders'
+        self.mes_client = MesClient(self.MES_URL)
 
-        # Action client 
-        self.client = None 
+        # MODBUS CLIENT
+        self.MODBUS_IP = "10.42.0.142"
+        self.MODBUS_PORT = "5020"
+        self.modbus_client = ModbusClient(self.MODBUS_IP, self.MODBUS_PORT)
+
+        # ROBOT ACTION CLIENT
+        self.action_name = 'robot'
+        self.action_client = actionlib.SimpleActionClient(self.action_name, our_ur.msg.RobotAction)
+        
+    
 
     def Enter(self):
         super(Execute, self).Enter()
-    
+
     def GetExecuteState(self):
         return self.exeState
 
-    def RobotAction(self, action): 
-        self.client = actionlib.SimpleActionClient('robot', our_ur.msg.RobotAction)
-        goal = our_ur.msg.RobotGoal(instruction = action)
-        self.client.send_goal(goal)
+    def RobotAction(self, action_id):
+        self.action_client.send_goal(our_ur.msg.RobotGoal(action_id))
 
     def Execute(self):
 
-        ## ------------- TRYING TO GET AN ORDER AND TICKET ID ----------- ## 
+        ## ------------- TRYING TO GET AN ORDER AND TICKET ID ----------- ##
 
         if(self.exeState == "getOrderFromServer"):
-            try: 
-                resp = requests.get('http://localhost:5000/orders')
-                data = resp.json()
-                if (len(data['orders'])):
-                    for order in data['orders']:
-                        self.order_id = order['id']
-                        self.order_status = order['status']
+            if(self.mes_client.get_order()): 
+                self.action_list = self.mes_client.actionList 
+                self.exeState = "pickUpBrick"
+            else: 
+                pass
 
-                        if self.order_status == "taken":
-                            #delete_order(self.order_id, order_ticket_dict[str(self.order_id)])
-                            pass
-                        elif self.order_status == "undefined":
-                            # if order is undefined, send a DELETE request i guess
-                            pass
-                        elif self.order_status == "ready":
-                            print("Order with id {} is ready! Will attempt to PUT!".format(self.order_id))
-                            self.order_ticket = put_order(self.order_id)
-                            print("Ticket", self.order_ticket)
-                            if(self.order_ticket != None):
-                                ## Saving the number of yellows
-                                self.n_yellow = order['yellow']
-                                list_y = [2] * self.n_yellow                ## yellow action = 2
-                                self.n_red = order['red']
-                                list_r = [3] * self.n_red                   ## red action = 3
-                                self.n_blue = order['blue']         
-                                list_b = [4] * self.n_blue                ## blue action = 4
-                                self.brick_index = 0 
-
-                                self.action_list = list_y + list_r + list_b
-                                print(self.action_list)
-                                ## Updating dictonary and deleting the order for testing purpose
-                                print("Order with id {} has been taken!".format(self.order_id))
-                                update_order_dict(order_ticket_dict, self.order_id, self.order_ticket)
-                                delete_order(self.order_id, order_ticket_dict[str(self.order_id)])
-
-                                self.exeState = "waitForMirRobot"
-                                break 
-                else: 
-                    print("Waiting for new orders ...")
-
-            except: 
-                print("Could not access url: ", self.URL)
-                self.FSM.ToTransition('toStopping')
-                
-        ## ------------- WHEN A ORDER IS READY WE NEED TO WAIT FOR MIR ROBOT TO ARRIVE ----------- ## 
+        ## ------------- WHEN A ORDER IS READY WE NEED TO WAIT FOR MIR ROBOT TO ARRIVE ----------- ##
         elif(self.exeState == "waitForMirRobot"):
 
-            ## CALL MIR ROBOT WITH SOME COMMAND 
-            ## IF MIRROBOT = IN POISITION THEN NEXT STATE 
-            self.RobotAction(1)                                 ## ACTION = 1 - INDICATE PICKUP BOXES FROM MIR ROBOT     
+            ## CALL MIR ROBOT WITH SOME COMMAND
+            ## IF MIRROBOT = IN POISITION THEN NEXT STATE
+            self.RobotAction(action = 1)                                 ## ACTION = 1 - INDICATE PICKUP BOXES FROM MIR ROBOT
             self.exeState = "pickUpBrick"
 
-        ## ------------- WHEN MIR ROBOT IS IN POSITION WE MUST GET THE BOXES FROM THE ROBOT ----------- ## 
-        elif(self.exeState == "waitPickupBox"): 
-            ## Wait for the result to be different from None 
+        ## ------------- WHEN MIR ROBOT IS IN POSITION WE MUST GET THE BOXES FROM THE ROBOT ----------- ##
+        elif(self.exeState == "waitPickupBox"):
+            ## Wait for the result to be different from None
             if(self.client.get_result() != None):
                 if(self.client_result() == True):
                     self.exeState = "pickUpBrick"
@@ -170,30 +136,69 @@ class Execute(State):
                     ## Maybe we should stop the system if the action failed
                     print("error")
 
-        ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ## 
-        elif(self.exeState == "pickUpBrick"): 
-            if( self.brick_index < len(self.action_list)):                       ## Keep track of the brick index is less than the size of the brick_lsit 
-                self.RobotAction(self.action_list[self.brick_index])             ## Send action to robot 
+        ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ##
+        elif(self.exeState == "pickUpBrick"):
+            if( self.action_index < len(self.action_list)):                       ## Keep track of the brick index is less than the size of the brick_lsit
+                self.RobotAction(self.action_list[self.action_index])             ## Send action to robot
                 self.exeState = "waitPickUpBrickDone"
             else:
-                ## done itteration through bricks 
-                self.exeState = "orderComplete"
+                ## done itteration through bricks
+                self.exeState = "complete"
 
 
-        ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ## 
+        ## ------------- WHEN BOXES ARE IN PLACE PICK UP BRICK ----------- ##
         elif(self.exeState == "waitPickUpBrickDone"):
-            if(self.client.get_result() != None): 
-                if(self.client.get_result() == True):
-                    print ("Done picking up brick!")
+            #if(self.action_client.get_result() != None):
+            #    if(self.action_client.get_result() == True):
+            #        print ("Done picking up brick!")
+            self.exeState = "checkBrick"
+
+        ## ------------- WRITES A COMMAND TO MAKE THE PI CHECK THE CAMERA----------- ##
+        elif(self.exeState == "checkBrick"):
+            self.modbus_client.writeRegister(0x00, 0)
+            self.startTimer1 = int(time.time())
+            self.exeState = "checkBrickReponse"
+            rospy.loginfo("WAITING FOR BRICK %s",self.action_list[self.action_index])
         
+        
+        ## ------------- CHECKS WHICH RESPOND WE GET FROM THE PI----------- ##
+        elif(self.exeState == "checkBrickReponse"):
+            if(self.modbus_client.readRegister(0x00) != 0): 
+                #rospy.loginfo("Brick ID needed is [%f] and brick found is [%f]", self.action_list[self.action_index], self.modbus_client.readRegister(0x00))
+                if(self.modbus_client.readRegister(0x00) == self.action_list[self.action_index]):
+                    rospy.loginfo("BRICK IS CORRECT")
+                    self.exeState = "putBrickInBox"
 
-        ## ------------- WHEN ALL THE BRICKS HAVE BEEN PICKED AND PLACED ----------- ## 
-        elif(self.exeState == "orderComplete"):
-            print ("JUBIIIII")
+                elif(self.modbus_client.readRegister(0x00) == 4):
+                    rospy.logerr("ERROR - NO BRICK FOUND!")
+                    self.exeState = "discardBrick"
+                else:
+                    rospy.logerr("ERROR - WRONG COLOR")
+                    self.exeState = "discardBrick"
+                    pass
+            
+            if(int(time.time()) - self.startTimer1 > 10):
+                rospy.logerr("TIMEOUT - NO RESPONSE FROM RASPBERRY PI [10 SEC]")
+                self.exeState = "checkBrick"
+
+        ## ------------- ----------- ##
+        elif(self.exeState == "discardBrick"):
+            rospy.loginfo("DISCARDING BRICK!")
+            self.exeState = "pickUpBrick"
 
 
-        ## ------------- WHEN THERE IS AN ERROR IN THE STATE NAME ----------- ## 
-        else: 
+        ## ------------- WHEN ALL THE BRICKS HAVE BEEN PICKED AND PLACED ----------- ##
+        elif(self.exeState == "putBrickInBox"):
+            rospy.loginfo("PUTTING BRICK IN BOX")
+            self.action_index+=1
+            self.exeState = "pickUpBrick"
+
+        ## ------------- COMPLETE ----------- ##
+        elif(self.exeState == "complete"):
+            rospy.loginfo("DONE!")
+
+        ## ------------- WHEN THERE IS AN ERROR IN THE STATE NAME ----------- ##
+        else:
             print ("STATE NAMING ERROR!")
 
 
@@ -206,7 +211,7 @@ class Execute(State):
             self.FSM.ToTransition("toCompleting")
         if(self.FSM.GetCmd() == 'stop'):
             self.FSM.ToTransition("toStopping")
-        self.totalLocalTime = int(time.time()*1000)  - self.startTime 
+        self.totalLocalTime = int(time.time()*1000)  - self.startTime
 
     def Exit(self):
         super(Execute, self).Exit()
@@ -226,7 +231,7 @@ class Complete(State):
             self.FSM.ToTransition("toResetting")
         if(self.FSM.GetCmd() == 'stop'):
             self.FSM.ToTransition("toStopping")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Complete, self).Exit()
@@ -243,7 +248,7 @@ class Aborted(State):
     def Execute(self):
         if(self.FSM.GetCmd() == 'clear'):
             self.FSM.ToTransition("toClearing")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
     def Exit(self):
         super(Aborted, self).Exit()
 
@@ -261,7 +266,7 @@ class Held(State):
             self.FSM.ToTransition("toUnholding")
         if(self.FSM.GetCmd() == 'stop'):
             self.FSM.ToTransition("toStopping")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
     def Exit(self):
         super(Held, self).Exit()
 
@@ -279,7 +284,7 @@ class Suspended(State):
             self.FSM.ToTransition("toUnsuspending")
         if(self.FSM.GetCmd() == 'stop'):
             self.FSM.ToTransition("toStopping")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
     def Exit(self):
         super(Suspended, self).Exit()
 
@@ -300,9 +305,8 @@ class Stopping(State):
         ## STOP THE ROBOT (PAUSED MODE)
         ## SET THE LIGHT TO INDICATE STOPPING/STOPPED
         ## MACHINE IS POWERED AND STATIONARY - CONTROLLED STOP
-        print("STATE: STOPPING")
         self.FSM.ToTransition("toStopped")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Stopping, self).Exit()
@@ -316,15 +320,14 @@ class Resetting(State):
         super(Resetting, self).Enter()
 
     def Execute(self):
-        
+
         ## RESET STUFF NEEDED BEFORE A COMPLETE/STOPPED SYSTEM
         ## SET LIGHT TO INDICATE RESETTING
         ## MAYBE HOME THE ROBOT - SHOULD WE HOME THE ROBOT AFTER EACH 'SOFT-STOP'?
         ## IF SO, WAIT FOR THE ROBOT TO BE IN ITS HOME POSITION
         ## WE SHOULDN'T GIVE UP AN ORDER WHEN EVER WE HAVE A STOP OR MAYBE WE SHOULD
-        print("STATE: RESETTING")
         self.FSM.ToTransition("toIdle")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Resetting, self).Exit()
@@ -339,13 +342,12 @@ class Starting(State):
 
     def Execute(self):
 
-        ## SET LIGHT TO INDICATE STARTING 
+        ## SET LIGHT TO INDICATE STARTING
         ## SET STUFF THAT NEEDS TO BE READY BEFORE EXECUTE (RAMP UP SPEED, OTHER MECHANICAL PARTS)
         ## MAYBE TEST SERVER CONECTION TO PLC, RASPBERRY OR MES
-        ## IF SOMETHING FAIL (MAYBE USE TIMER VALUE) - GO TO STOPPING STATE 
-        print("STATE: STARTING")
+        ## IF SOMETHING FAIL (MAYBE USE TIMER VALUE) - GO TO STOPPING STATE
         self.FSM.ToTransition("toExecute")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Starting, self).Exit()
@@ -360,12 +362,11 @@ class Completing(State):
 
     def Execute(self):
 
-        ## SET LIGHT TO INDICATE COMPLETING/COMPLETED 
-        ## THIS STEP CAN BE ACTIVATED WHEN A CERTAIN UNIT COUNTER HAVE BEEN REACHED 
-        ## 
-        print("STATE: COMPLETING")
+        ## SET LIGHT TO INDICATE COMPLETING/COMPLETED
+        ## THIS STEP CAN BE ACTIVATED WHEN A CERTAIN UNIT COUNTER HAVE BEEN REACHED
+        ##
         self.FSM.ToTransition("toComplete")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Completing, self).Exit()
@@ -382,11 +383,10 @@ class Aborting(State):
     def Execute(self):
 
         ## SET LIGHT TO INDICATE ABORTING/ABORTED
-        ## BRING MACHINE TO RAPID SAFESTOP 
+        ## BRING MACHINE TO RAPID SAFESTOP
         ## CAN CONTINUE AFTER ABORT CONDITION HAVE BEEN CORRECTED
-        print("STATE: ABORTING")
         self.FSM.ToTransition("toAborted")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Aborting, self).Exit()
@@ -400,9 +400,8 @@ class Clearing(State):
         super(Clearing, self).Enter()
 
     def Execute(self):
-        print("STATE: CLEARING")
         self.FSM.ToTransition("toStopped")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Clearing, self).Exit()
@@ -416,14 +415,13 @@ class Holding(State):
         super(Holding, self).Enter()
 
     def Execute(self):
-        
-        ## SET LIGHT TO INDICATE HELD 
-        ## WHEN SOME INTERNAL MACHINE CONDITIONS DO NOT ALLOW THE MACHINE TO CONTINUE 
+
+        ## SET LIGHT TO INDICATE HELD
+        ## WHEN SOME INTERNAL MACHINE CONDITIONS DO NOT ALLOW THE MACHINE TO CONTINUE
         ## EXAMPLE - SOMETHING WITHIN THE MACHINE NEEDS TO BE REFILLED WHICH IS NOT POSSIBLE WHEN THE SYSTEM IS RUNNING
-        ## STOP THE ROBOT 
-        print("STATE: HOLDING")
+        ## STOP THE ROBOT
         self.FSM.ToTransition("toHeld")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Holding, self).Exit()
@@ -438,11 +436,10 @@ class Unholding(State):
 
     def Execute(self):
 
-        ## SET LIGHT TO INDICATE UNHOLDING/EXECUTING 
-        ## SOME OF THE SAME FUNCTIONS AS STARTING - CHECK IF EVERYTHING IS READY FOR PRODUCTION 
-        print("STATE: UNHOLDING")
+        ## SET LIGHT TO INDICATE UNHOLDING/EXECUTING
+        ## SOME OF THE SAME FUNCTIONS AS STARTING - CHECK IF EVERYTHING IS READY FOR PRODUCTION
         self.FSM.ToTransition("toExecute")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Unholding, self).Exit()
@@ -458,11 +455,10 @@ class Suspending(State):
     def Execute(self):
 
         ## SET THE LIGHT TO INDICATE SUSPENDING/SUSPENDED
-        ## IF EXTERIOR SYSTEMS ARE NOT FUNCTIONALL. THIS COULD BE INFEED PROBLEMS OR OUTFEED BLOCKAGE. 
+        ## IF EXTERIOR SYSTEMS ARE NOT FUNCTIONALL. THIS COULD BE INFEED PROBLEMS OR OUTFEED BLOCKAGE.
         ## STOP THE ROBOT OR MAYBE STOP THE ROBOT FROM MOVING INTO REFILL ZONE (ONLY NESSASARY WITH FEEDER MEASUREMENT SYSTEM)
-        print("STATE: SUSPENDING")
         self.FSM.ToTransition("toSuspended")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Suspending, self).Exit()
@@ -478,10 +474,9 @@ class Unsuspending(State):
     def Execute(self):
 
         ## SET THE LIGHT TO INDICATE UNSUSPENDIG/EXECUTE
-        ## SOME OF THE SAME FUNCTIONS AS STARTING - COULD CHECK THAT THE SYSTEM IS FILLED UP 
-        print("STATE: UNSUSPENDING")
+        ## SOME OF THE SAME FUNCTIONS AS STARTING - COULD CHECK THAT THE SYSTEM IS FILLED UP
         self.FSM.ToTransition("toExecute")
-        self.totalLocalTime = int(time.time()*1000) - self.startTime 
+        self.totalLocalTime = int(time.time()*1000) - self.startTime
 
     def Exit(self):
         super(Unsuspending, self).Exit()
